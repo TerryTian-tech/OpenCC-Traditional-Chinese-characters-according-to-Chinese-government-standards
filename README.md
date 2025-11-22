@@ -12,7 +12,7 @@ Opencc转换的配置文件存于本仓库的“t2gov”文件夹下，使用者
 
 基于使用者可以进行自定义/编辑转换字表、词典的考虑，“t2gov”下的字表、词典均为txt格式，而并未转换为ocd2格式。使用者可以调用Opencc自行转换。
 
-“transformer”文件夹下提供了一个Python转换脚本。以Windows系统上使用为例，使用者在部署好Python环境后，在Powershell里执行pip install opencc python-docx chardet lxml pywin32命令，安装依赖。安装成功后，将“t2gov”文件夹下所有文件复制到C:\Users\administrator（注：此处为你的计算机用户名，默认名称为administrator或admin，如有微软账户一般则为微软账户名）\AppData\Local\Programs\Python\Python313（注：此处为你安装的Python版本号，如有多个文件夹取数字最大的那个）\Lib\site-packages\opencc\clib\share\opencc下，再下载“transformer”文件夹里的转换脚本并运行，即可实现doc文档、docx文档及txt文件的繁体字形转换。
+“transformer”文件夹下提供了一个Python转换脚本。以Windows系统上使用为例，使用者在部署好Python环境后，在Powershell里执行pip install opencc python-docx chardet lxml pywin32命令，安装依赖。安装成功后，将“t2gov”文件夹下所有文件复制到C:\Users\administrator(注：此处为你的计算机用户名，默认名称为administrator或admin，如有微软账户一般则为微软账户名)\AppData\Local\Programs\Python\Python313(注：此处为你安装的Python版本号，如有多个文件夹取数字最大的那个)\Lib\site-packages\opencc\clib\share\opencc下，再下载“transformer”文件夹里的转换脚本并运行，即可实现doc文档、docx文档及txt文件的繁体字形转换。
 
 ## 特别注意
 由于《通用规范汉字表》规定的异体—正体映射关系相对简单、不完全符合实际情况，本转换方案依据《现代汉语词典》《辞海》对部分异体字▶正体字转换关系作出了调整。本方案不能视为与《通用规范汉字表》的规定完全一致。
