@@ -1,0 +1,22 @@
+{
+  "name": "Traditional Chinese to Traditional Chinese (Chinese Government standard)",
+  "segmentation": {
+    "type": "mmseg",
+    "dict": {
+      "type": "text",
+      "file": "TGPhrases.txt"
+    }
+  },
+  "conversion_chain": [{
+    "dict": {
+      "type": "group",
+      "dicts": [{
+        "type": "text",
+        "file": "TGPhrases.txt"
+      }, {
+        "type": "text",
+        "file": "TGCharacters.txt"
+      }]
+    }
+  }]
+}
