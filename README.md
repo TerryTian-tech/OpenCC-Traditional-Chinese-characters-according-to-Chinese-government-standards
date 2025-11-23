@@ -5,7 +5,7 @@ OpenCC开放中文转换 - 将混杂不同标准的繁体字形转换为《通�
 
 本仓库仍以《通用规范汉字表》为依据，基于[OpenCC](https://github.com/BYVoid/OpenCC)转换引擎，提供从港、台标准以及各种标准和旧字形混杂的“繁体”到《通用规范汉字表》的规范繁体字形的转换方案。从简体到《通用规范汉字表》的规范繁体字形的转换，在Github上已有成熟方案：[OpenCC 简繁转换之通用规范汉字标准](https://github.com/amorphobia/opencc-tonggui)。因此，本仓库只聚焦于繁体▶规范繁体的转换。
 
-本仓库同时提供了一个Python脚本，能够实现doc文档、docx文档及txt文件的繁体字形转换。该脚本仍以Opencc作为转换引擎。
+本仓库同时提供了一个Python脚本，能够实现doc文档、docx文档及txt文件的繁体字形转换。该脚本仍以OpenCC作为转换引擎。
 
 ## 使用说明
 OpenCC转换的配置文件存于本仓库的“t2gov”文件夹下，使用者应自行拷贝到Opencc的方案文件夹中。具体可参照Opencc的说明文档。
