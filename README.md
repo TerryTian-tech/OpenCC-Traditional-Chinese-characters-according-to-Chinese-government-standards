@@ -14,7 +14,7 @@ OpenCC转换的配置文件存于本仓库的“t2gov”文件夹下，使用者
 
 “transformer”文件夹下提供了一个Python转换脚本。以Windows系统上使用为例，使用者在部署好Python环境后，在Powershell里执行pip install opencc python-docx chardet lxml pywin32命令，安装依赖。安装成功后，将“t2gov”文件夹下所有文件复制到C:\Users\administrator(注：此处为你的计算机用户名，默认名称为administrator或admin，如有微软账户一般则为微软账户名)\AppData\Local\Programs\Python\Python313(注：此处为你安装的Python版本号，如有多个文件夹取数字最大的那个)\Lib\site-packages\opencc\clib\share\opencc下，再下载“transformer”文件夹里的转换脚本并运行，即可实现doc文档、docx文档及txt文件的繁体字形转换。
 
-对于想在Win10/Win11下使用转换脚本但不想体验繁琐的部署、安装流程的使用者，本仓库的[Releases](https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/releases/tag/transformer)下已提供了一个由pyinstaller打包的免安装运行版本。
+对于想在Win10/Win11下使用转换脚本但不想体验繁琐的部署、安装流程的使用者，本仓库的[Releases]((https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/releases))下已提供了一个由pyinstaller打包的免安装运行版本。
 
 在Mac和linux发行版中使用该转换脚本，需要先去除doc文档转换为docx文档以及监视键盘输入esc键的代码部分。
 
