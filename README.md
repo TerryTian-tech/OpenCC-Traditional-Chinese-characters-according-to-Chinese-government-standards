@@ -8,9 +8,9 @@ OpenCC开放中文转换 - 将混杂不同标准的繁体字形转换为《通�
 本仓库同时提供了一个Python脚本，能够实现doc文档、docx文档及txt文件的繁体字形转换。该脚本仍以OpenCC作为转换引擎。
 
 ## 使用说明
-OpenCC转换的配置文件存于本仓库的“t2gov”文件夹下，使用者应自行拷贝到OpenCC的方案文件夹中。具体可参照OpenCC的说明文档。
+OpenCC转换的配置文件存于本仓库的“t2gov”文件夹下，使用者应自行拷贝到OpenCC的方案文件夹中，具体可参照OpenCC的说明文档。字表文件名为TGCharacters.txt，词典文件名为TGPhrases.txt。基于使用者可以进行自定义/编辑转换字表、词典的考虑，“t2gov”下的字表、词典均为txt格式，并未转换为ocd2格式。使用者可以调用OpenCC自行转换ocd2，转换后应相应编辑t2gov.json文件令其使用ocd2。
 
-基于使用者可以进行自定义/编辑转换字表、词典的考虑，“t2gov”下的字表、词典均为txt格式，并未转换为ocd2格式。使用者可以调用OpenCC自行转换ocd2，转换后应相应编辑t2gov.json文件令其使用ocd2。
+考虑到部分繁体文档是使用内地的输入法软件打出来的，存在不少繁简混杂的情形，因此字表（TGCharacters.txt）第1480行后加入了简→规范繁体的转换以改善繁简混杂的状态。如果使用者转换的文档本身就包含简体内容，那么应删除字表（TGCharacters.txt）第1480行后的内容。
 
 “transformer”文件夹下提供了一个Python转换脚本。以Windows系统上使用为例，使用者在部署好Python环境后，在Powershell里执行pip install opencc python-docx chardet lxml pywin32命令，安装依赖。安装成功后，将“t2gov”文件夹下所有文件复制到C:\Users\administrator(注：此处为你的计算机用户名，默认名称为administrator或admin，如有微软账户一般则为微软账户名)\AppData\Local\Programs\Python\Python313(注：此处为你安装的Python版本号，如有多个文件夹取数字最大的那个)\Lib\site-packages\opencc\clib\share\opencc下，再下载“transformer”文件夹里的转换脚本并运行，即可实现doc文档、docx文档及txt文件的繁体字形转换。
 
