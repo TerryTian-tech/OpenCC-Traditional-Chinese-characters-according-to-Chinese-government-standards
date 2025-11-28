@@ -16,7 +16,7 @@ OpenCC转换的配置文件存于本仓库的“t2gov”文件夹下，使用者
 
 对于想在Win10/Win11下使用转换脚本但不想体验繁琐的部署、安装流程的使用者，本仓库的[Releases](https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/releases)下已提供了一个由pyinstaller打包的免安装运行版本。
 
-在Mac和linux发行版下，请使用本仓库“transformer(Mac)”下提供的转换脚本。该脚本仅支持docx文档及txt文件的繁体字形转换，使用前需要使用者将本仓库“t2gov”下所有文件复制到Python打包的OpenCC储存转换方案的目录下（具体可参照OpenCC说明文档，或者搜索t2s.json等文件所在位置）。
+在Mac和linux发行版下，请使用本仓库“transformer(Mac)”下提供的转换脚本。该脚本仅支持docx文档及txt文件的繁体字形转换，使用前需要使用者在终端中执行pip install opencc python-docx chardet lxml命令安装依赖，然后将本仓库“t2gov”下所有文件复制到Python打包的OpenCC储存转换方案的目录下（具体可参照OpenCC说明文档，或者搜索t2s.json等文件所在位置）。
 
 ## 特别注意
 由于《通用规范汉字表》规定的异体—正体映射关系相对简单、不完全符合实际情况，本转换方案依据《现代汉语词典》《辞海》对部分异体字▶正体字转换关系作出了调整。本方案不能视为与《通用规范汉字表》的规定完全一致。
