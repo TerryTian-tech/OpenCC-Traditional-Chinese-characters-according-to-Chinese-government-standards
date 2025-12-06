@@ -14,9 +14,11 @@ OpenCC转换的配置文件存于本仓库的“t2gov”文件夹下，使用者
 
 考虑到部分繁体文档是使用内地的输入法软件打出来的，存在不少繁简混杂的情形，因此字表（TGCharacters.txt）第1485行后加入了多组简→规范繁体的转换以改善繁简混杂的状态。如果使用者转换的文档本身就包含简体内容，那么应删除字表（TGCharacters.txt）第1485行后的内容。
 
-“transformer”文件夹下提供了一个Python转换程序。以Windows系统上使用为例，使用者在部署好Python环境后，在Powershell里执行pip install opencc python-docx chardet lxml pywin32 pillow 命令，安装依赖。安装成功后，将“t2gov”文件夹下所有文件复制到C:\Users\administrator(注：此处为你的计算机用户名，默认名称为administrator或admin，如有微软账户一般则为微软账户名)\AppData\Local\Programs\Python\Python313(注：此处为你安装的Python版本号，如有多个文件夹取数字最大的那个)\Lib\site-packages\opencc\clib\share\opencc下，再下载“transformer”文件夹里的转换程序并运行，即可实现doc文档、docx文档及txt文件的繁体字形转换。
+“transformer”文件夹下提供了一个Python转换程序。以Windows系统上使用为例，使用者在部署好Python环境后，在Powershell里执行pip install opencc python-docx chardet lxml pywin32 pillow 命令，安装依赖。安装成功后，将“t2gov”文件夹下所有文件复制到C:\Users\administrator(注：此处为你的计算机用户名，默认名称为administrator或admin，如有微软账户一般则为微软账户名)\AppData\Local\Programs\Python\Python313(注：此处为你安装的Python版本号，如有多个文件夹取数字最大的那个)\Lib\site-packages\opencc\clib\share\opencc下，再下载“transformer”文件夹里的转换程序并运行，即可实现doc文档*、docx文档及txt文件的繁体字形转换。
 
 在Mac和linux发行版下，请使用本仓库“transformer(Mac)”下提供的转换程序。该程序仅支持docx文档及txt文件的繁体字形转换，使用前需要使用者先安装部署好Python环境，在终端中执行pip install opencc python-docx chardet lxml命令安装依赖，然后将本仓库“t2gov”下所有文件复制到Python打包的OpenCC储存转换方案的目录下（先执行pip show opencc命令找到OpenCC包具体所在位置，储存转换方案的位置一般在opencc/clib/share/opencc下，若不是可尝试搜索t2s.json等文件所在位置）。
+
+*在Windows系统上部分场景下转换doc文档时会出现错误提示“AttributeError: module ‘win32com.gen_py.00020905-0000-4B30-A977-D214852036FFx0x3x0’ has no attribute ‘CLSIDToClassMap’”。如出现该错误，可尝试删除C:\Users\administrator（注：此处为你的计算机用户名，默认名称为administrator或admin，如有微软账户一般则为微软账户名）\AppData\Local\Temp\gen_py\3.13(注：此处为你安装的Python版本号)下的缓存文件夹00020905-0000-4B30-A977-D214852036FFx0x3x0，再重新运行转换器。如果错误提示代号并非00020905-0000-4B30-A977-D214852036FFx0x3x0，亦可照此操作以排除故障。
 
 ## 特别注意
 由于《通用规范汉字表》规定的异体—正体映射关系相对简单、不完全符合实际情况，本转换方案依据《现代汉语词典》《辞海》对部分异体字▶正体字转换关系作出了调整。本方案不能视为与《通用规范汉字表》的规定完全一致。
