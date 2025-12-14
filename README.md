@@ -12,7 +12,7 @@ OpenCC开放中文转换 - 将混杂不同标准的繁体字形转换为《通�
 
 OpenCC转换的配置文件存于本仓库的“t2gov”文件夹下，使用者应自行拷贝到OpenCC的方案文件夹中，具体可参照OpenCC的说明文档。方案文件为t2gov.json，字表*文件名为TGCharacters.txt，词典文件名为TGPhrases.txt。基于使用者可以进行自定义/编辑转换字表、词典的考虑，“t2gov”下的字表、词典均为txt格式，并未转换为ocd2格式。使用者可以调用OpenCC自行转换ocd2，转换后应相应编辑t2gov.json文件令其使用ocd2。
 
->考虑到部分繁体文档是使用内地的输入法软件打出来的，存在不少繁简混杂的情形，因此字表（TGCharacters.txt）第1636行后加入了多组简→规范繁体的转换以改善繁简混杂的状态。如果使用者转换的文档本身就包含简体内容，那么应使用t2gov_keep_simp.json作为方案文件，TGCharacters_keep_simp.txt作为字表。
+>考虑到部分繁体文档是使用内地的输入法软件打出来的，存在不少繁简混杂的情形，因此字表（TGCharacters.txt）第1636行后加入了多组简→规范繁体的转换以改善繁简混杂的状态。如果使用者转换的文档本身就包含简体内容，那么应使用t2gov_keep_simp.json作为方案文件，TGCharacters_keep_simp.txt作为字表。但是命中OpenCC转换词典的简体字仍然会被转换，使用后请注意校对。
 
 本仓库的“t2gov”文件夹下同时还提供了一个只转换繁体旧字形到新字形、保留大部分异体字的方案。方案文件名为t2new.json，字表文件名为GovVariants.txt。
 
