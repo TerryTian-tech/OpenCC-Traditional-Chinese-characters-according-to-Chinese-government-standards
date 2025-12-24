@@ -5,20 +5,26 @@ OpenCC开放中文转换 - 将混杂不同标准的繁体字形转换为《通�
 
 本仓库仍以《通用规范汉字表》为依据，基于[OpenCC](https://github.com/BYVoid/OpenCC)转换引擎，提供从港、台标准以及各种标准和旧字形混杂的“繁体”到《通用规范汉字表》的规范繁体字形的转换方案。从简体到《通用规范汉字表》的规范繁体字形的转换，在Github上已有成熟方案：[OpenCC 简繁转换之通用规范汉字标准](https://github.com/amorphobia/opencc-tonggui)。因此，本仓库只聚焦于繁体▶规范繁体的转换。
 
-本仓库同时提供了一个Python程序，能够实现doc文档、docx文档及txt文件的繁体字形转换。该程序仍以OpenCC作为转换引擎。
+本仓库同时提供了一个Python转换程序，能够实现doc文档、docx文档及txt文件的繁体字形转换。该程序仍以OpenCC作为转换引擎。
 
 ## 使用说明
->对于想在Win10/Win11下使用转换程序但不想体验繁琐的部署、安装流程的使用者，本仓库的[Releases](https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/releases)下已提供了一个由pyinstaller打包的免安装运行版本。
+>本仓库的[Releases](https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/releases)下已提供规范繁体字形转换器的免安装版本，支持Win10/Win11和Win7。您可以直接下载使用，如果你需要了解细节，再阅读以下使用说明。
 
-OpenCC转换的配置文件存于本仓库的“t2gov”文件夹下，使用者应自行拷贝到OpenCC的方案文件夹中，具体可参照OpenCC的说明文档。方案文件为t2gov.json，字表*文件名为TGCharacters.txt，词典文件名为TGPhrases.txt。基于使用者可以进行自定义/编辑转换字表、词典的考虑，“t2gov”下的字表、词典均为txt格式，并未转换为ocd2格式。使用者可以调用OpenCC自行转换ocd2，转换后应相应编辑t2gov.json文件令其使用ocd2。
+OpenCC转换的配置文件存于本仓库的“t2gov”文件夹下，使用者应自行拷贝到OpenCC的方案文件夹中，具体可参照OpenCC的说明文档。基于使用者可以进行自定义/编辑转换字表、词典的考虑，“t2gov”下的字表、词典均为txt格式，并未转换为ocd2格式。使用者可以调用OpenCC自行转换为ocd2，转换后应相应编辑json文件令其使用ocd2。
+
+本仓库提供了三种转换方案：繁体转换为规范繁体、只转换繁体旧字形到新字形、繁体转换为简体。
+
+繁体转换为规范繁体的方案文件为t2gov.json，字表*文件名为TGCharacters.txt，词典文件名为TGPhrases.txt。
 
 >考虑到部分繁体文档是使用内地的输入法软件打出来的，存在不少繁简混杂的情形，因此字表（TGCharacters.txt）第1636行后加入了多组简→规范繁体的转换以改善繁简混杂的状态。如果使用者转换的文档本身就包含简体内容，那么应使用t2gov_keep_simp.json作为方案文件，TGCharacters_keep_simp.txt作为字表。但是命中OpenCC转换词典的简体字仍然会被转换，使用后请注意校对。
 
-本仓库的“t2gov”文件夹下同时还提供了一个只转换繁体旧字形到新字形、保留大部分异体字的方案。方案文件名为t2new.json，字表文件名为GovVariants.txt。
+只转换繁体旧字形到新字形的方案文件为t2new.json，字表文件名为GovVariants.txt。这个方案会保留大部分异体字不转换。
 
 >考虑到部分繁体文档是使用内地的输入法软件打出来的，存在不少繁简混杂的情形，因此该方案的字表（GovVariants.txt）第367行后也加入了多组简→规范繁体的转换以改善繁简混杂的状态。如果使用者转换的文档本身就包含简体内容，那么应使用t2new_keep_simp.json作为方案文件，GovVariants_keep_simp.txt作为字表。
 
-“transformer”文件夹下提供了一个Python转换程序。以Windows系统上使用为例，使用者在部署好Python环境后，在Powershell里执行pip install opencc python-docx chardet lxml pywin32 PyQt5 命令，安装依赖。安装成功后，将“t2gov”文件夹下所有文件复制到C:\Users\administrator(注：此处为你的计算机用户名，默认名称为administrator或admin，如有微软账户一般则为微软账户名)\AppData\Local\Programs\Python\Python313(注：此处为你安装的Python版本号，如有多个文件夹取数字最大的那个)\Lib\site-packages\opencc\clib\share\opencc下，再下载“transformer”文件夹里的转换程序并运行，即可实现doc文档、docx文档及txt文件的繁体字形转换。
+繁体转换为简体的方案文件为t2s.json，字表文件名为TSCharacters.txt，词典文件名为TSPhrases.txt。
+
+“transformer”文件夹下提供了一个Python转换程序。以Windows系统上使用为例，使用者在部署好Python环境后，在Powershell里执行pip install opencc python-docx chardet lxml pywin32 PyQt5 命令，安装依赖。安装成功后，将“t2gov”文件夹下所有文件复制到C:\Users\administrator(注：此处为你的计算机用户名，默认名称为administrator或admin，如有微软账户一般则为微软账户名)\AppData\Local\Programs\Python\Python313(注：此处为你安装的Python版本号，如有多个文件夹取数字最大的那个)\Lib\site-packages\opencc\clib\share\opencc下，再下载“transformer”文件夹里的转换程序并运行，即可实现doc文档、docx文档及txt文件的繁体字形转换。对于想在Windows下使用转换程序但不想体验繁琐的部署、安装流程的使用者，请直接移步[Releases](https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/releases)选择适合你系统环境的包下载运行即可。
 
 在Mac和linux发行版下，请使用本仓库“transformer(Mac)”下提供的转换程序。该程序仅支持docx文档及txt文件的繁体字形转换，使用前需要使用者先安装部署好Python环境，在终端中执行pip install opencc python-docx chardet lxml命令安装依赖，然后将本仓库“t2gov”下所有文件复制到Python打包的OpenCC储存转换方案的目录下（先执行pip show opencc命令找到OpenCC包具体所在位置，储存转换方案的位置一般在opencc/clib/share/opencc下，若不是可尝试搜索t2s.json等文件所在位置）。执行py转换程序前请编辑py文件，确定你需要选择哪个转换方案（默认为t2gov），方案名即为json的文件名。
 
