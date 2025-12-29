@@ -14,7 +14,7 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QH
                              QMessageBox, QGroupBox, QComboBox, QCheckBox, QLineEdit,
                              QStyleFactory, QTabWidget, QListWidget, QSplitter, QMenuBar,
                              QMenu, QAction, QActionGroup, QRadioButton, QButtonGroup)
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QSettings
 from PyQt5.QtGui import QIcon, QFont, QPixmap, QColor, QPalette
 
 from docx import Document
@@ -682,7 +682,14 @@ class ConversionWorker(QThread):
 class ModernUI(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.current_theme = "dark"  # 默认主题为暗色
+        
+        # 初始化设置存储
+        self.settings = QSettings("TraditionalConverter", "AppSettings")
+        
+        # 从设置中加载主题，如果不存在则使用默认的暗色主题
+        saved_theme = self.settings.value("theme", "dark")
+        self.current_theme = saved_theme
+        
         self.init_ui()
         
     def init_ui(self):
@@ -757,7 +764,7 @@ class ModernUI(QMainWindow):
         theme_layout.setContentsMargins(15, 20, 15, 15)
         
         # 主题选择说明
-        theme_label = QLabel("选择您喜欢的界面主题（仅本次有效）:")
+        theme_label = QLabel("选择您喜欢的界面主题:")
         theme_layout.addWidget(theme_label)
         
         # 主题选择按钮
@@ -767,8 +774,11 @@ class ModernUI(QMainWindow):
         self.dark_theme_radio = QRadioButton("暗色主题")
         self.light_theme_radio = QRadioButton("浅色主题")
         
-        # 设置默认选中暗色主题
-        self.dark_theme_radio.setChecked(True)
+        # 根据保存的主题设置默认选中
+        if self.current_theme == "dark":
+            self.dark_theme_radio.setChecked(True)
+        else:
+            self.light_theme_radio.setChecked(True)
         
         # 将单选按钮添加到布局
         theme_button_layout.addWidget(self.dark_theme_radio)
@@ -780,7 +790,7 @@ class ModernUI(QMainWindow):
         # 连接信号
         self.dark_theme_radio.toggled.connect(lambda: self.on_theme_changed("dark"))
         self.light_theme_radio.toggled.connect(lambda: self.on_theme_changed("light"))
-        
+
         layout.addWidget(theme_group)
         
         layout.addStretch()
@@ -1126,8 +1136,15 @@ class ModernUI(QMainWindow):
         """更改主题"""
         if theme != self.current_theme:
             self.apply_theme(theme)
-            self.statusBar().showMessage(f"已切换至{theme}主题")
-        
+            # 保存主题设置
+            self.settings.setValue("theme", theme)
+            self.statusBar().showMessage(f"已切换至{theme}主题，设置已保存")
+
+    def save_settings(self):
+        """保存所有设置"""
+        # 保存主题
+        self.settings.setValue("theme", self.current_theme)
+ 
     def create_conversion_tab(self):
         """创建转换选项卡"""
         tab = QWidget()
@@ -1386,6 +1403,12 @@ class ModernUI(QMainWindow):
         else:
             QMessageBox.critical(self, "错误", message)
             self.statusBar().showMessage("转换失败")
+            
+    def closeEvent(self, event):
+        """窗口关闭事件，保存设置"""
+        # 保存当前设置
+        self.save_settings()
+        event.accept()
 
 def main():
     app = QApplication(sys.argv)
