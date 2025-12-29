@@ -1206,12 +1206,9 @@ class ModernUI(QMainWindow):
         yes_button = msg_box.button(QMessageBox.Yes)
         no_button = msg_box.button(QMessageBox.No)
         cancel_button = msg_box.button(QMessageBox.Cancel)
-        if yes_button:
-            yes_button.setText("选择文件夹")
-        if no_button:
-            no_button.setText("选择文件")
-        if cancel_button:
-            cancel_button.setText("取消")
+        yes_button.setText("选择文件夹")
+        no_button.setText("选择文件")
+        cancel_button.setText("取消")
 
         # 显示对话框并等待用户选择
         choice = msg_box.exec_()
