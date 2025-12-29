@@ -687,7 +687,7 @@ class ModernUI(QMainWindow):
         
     def init_ui(self):
         # 设置窗口属性
-        self.setWindowTitle("规范繁体字形转换器 V1.1.2")
+        self.setWindowTitle("规范繁体字形转换器 V1.1.3")
         self.setGeometry(100, 100, 900, 750)
         self.setMinimumSize(800, 600)
         
@@ -1249,7 +1249,7 @@ class ModernUI(QMainWindow):
         
         # 描述区域
         desc_label = QLabel("""
-        <h2>规范繁体字形转换器 V1.1.2</h2>
+        <h2>规范繁体字形转换器 V1.1.3</h2>
         <p>专业的繁体字形转换工具，助您将繁体旧字形、异体字和港台标准的繁体字形转换为《通用规范汉字表》的规范繁体字形。</p>
         <p><b>主要特性:</b></p>
         <ul>
@@ -1279,10 +1279,29 @@ class ModernUI(QMainWindow):
         dialog.setFileMode(QFileDialog.ExistingFiles)
         dialog.setOption(QFileDialog.ShowDirsOnly, True)
         
-        # 允许选择文件或文件夹
-        choice = QMessageBox.question(self, "选择类型", "批量转换同一目录下所有文档请选择“Yes”，转换单个文档请选择“No”。",
-                                     QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel)
-        
+        # 使用标准QMessageBox，但修改按钮文本
+        msg_box = QMessageBox(
+            QMessageBox.Question,
+            "选择类型",
+            "批量转换同一目录下所有文档请选择文件夹，转换单个文档请选择文件。",
+            QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel,
+            self
+        )
+
+        # 修改按钮文本
+        yes_button = msg_box.button(QMessageBox.Yes)
+        no_button = msg_box.button(QMessageBox.No)
+        cancel_button = msg_box.button(QMessageBox.Cancel)
+        if yes_button:
+            yes_button.setText("选择文件夹")
+        if no_button:
+            no_button.setText("选择文件")
+        if cancel_button:
+            cancel_button.setText("取消")
+
+        # 显示对话框并等待用户选择
+        choice = msg_box.exec_()
+    
         if choice == QMessageBox.Yes:  # 文件夹
             path = QFileDialog.getExistingDirectory(self, "选择输入文件夹")
             if path:
