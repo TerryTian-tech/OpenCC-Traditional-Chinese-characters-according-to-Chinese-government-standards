@@ -608,7 +608,7 @@ class ModernUI(QMainWindow):
         
     def init_ui(self):
         # 设置窗口属性
-        self.setWindowTitle("规范繁体字形转换器 V1.1.3 For Mac/Linux")
+        self.setWindowTitle("规范繁体字形转换器 V1.1.4 For Mac/Linux")
         self.setGeometry(100, 100, 900, 750)
         self.setMinimumSize(800, 600)
         
@@ -882,6 +882,15 @@ class ModernUI(QMainWindow):
                 border: 2px solid #555555;
                 border-radius: 9px;
             }
+            QPushButton#cancelButton {
+                background-color: #e74c3c;
+                font-weight: bold;
+                padding: 12px;
+                font-size: 16px;
+            }
+            QPushButton#cancelButton:hover {
+                background-color: #c0392b;
+            }
         """)
         
     def apply_light_theme(self):
@@ -1044,6 +1053,15 @@ class ModernUI(QMainWindow):
                 border: 2px solid #cccccc;
                 border-radius: 9px;
             }
+            QPushButton#cancelButton {
+                background-color: #e74c3c;
+                font-weight: bold;
+                padding: 12px;
+                font-size: 16px;
+            }
+            QPushButton#cancelButton:hover {
+                background-color: #c0392b;
+            }
         """)
         
     def change_theme(self, theme):
@@ -1147,6 +1165,13 @@ class ModernUI(QMainWindow):
         self.start_button.setObjectName("startButton")
         self.start_button.clicked.connect(self.start_conversion)
         control_layout.addWidget(self.start_button)
+
+        self.cancel_button = QPushButton("取消")
+        self.cancel_button.setObjectName("cancelButton")
+        self.cancel_button.setEnabled(False)  # 初始状态不可用
+        self.cancel_button.clicked.connect(self.cancel_conversion)
+        control_layout.addWidget(self.cancel_button)
+
         control_layout.addStretch()
         layout.addLayout(control_layout)
         
@@ -1180,7 +1205,7 @@ class ModernUI(QMainWindow):
         
         # 描述区域
         desc_label = QLabel("""
-        <h2>规范繁体字形转换器 V1.1.3 For Mac/Linux</h2>
+        <h2>规范繁体字形转换器 V1.1.4 For Mac/Linux</h2>
         <p>专业的繁体字形转换工具，助您将繁体旧字形、异体字和港台标准的繁体字形转换为《通用规范汉字表》的规范繁体字形。</p>
         <p><b>主要特性:</b></p>
         <ul>
@@ -1193,7 +1218,7 @@ class ModernUI(QMainWindow):
         <p><b>请从以下页面获取本工具最新版本：</p>
         <ul>
               <p>Github：https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards
-              <p>Gitee：https://gitee.com/terrytian-tech/opencc-traditional-chinese-characters-according-to-chinese-government-standards
+              <p>Gitee：https://gitee.com/terrytian-tech/tonggui-traditional-chinese
         </ul>
         <p><b>本软件遵循Apache-2.0开源协议发布。</p>
         """)
@@ -1278,6 +1303,7 @@ class ModernUI(QMainWindow):
         
         # 启动转换线程
         self.start_button.setEnabled(False)
+        self.cancel_button.setEnabled(True)
         self.progress_bar.setValue(0)
         self.log_text.clear()
         
@@ -1306,17 +1332,34 @@ class ModernUI(QMainWindow):
         self.log_text.verticalScrollBar().setValue(
             self.log_text.verticalScrollBar().maximum()
         )
+
+    def cancel_conversion(self):
+        """取消转换"""
+        if hasattr(self, 'worker') and self.worker.isRunning():
+            self.worker.terminate()  # 终止线程
+            self.worker.wait()  # 等待线程结束
+            self.append_log("转换已被用户取消")
+            self.statusBar().showMessage("转换已取消")
         
+        # 重置按钮状态
+        self.start_button.setEnabled(True)
+        self.cancel_button.setEnabled(False)
+        self.progress_label.setText("已取消")
+
     def conversion_finished(self, success, message):
         """转换完成"""
         self.start_button.setEnabled(True)
+        self.cancel_button.setEnabled(False)  # 转换完成后禁用取消按钮
         
         if success:
             QMessageBox.information(self, "成功", message)
             self.statusBar().showMessage("转换完成")
         else:
-            QMessageBox.critical(self, "错误", message)
-            self.statusBar().showMessage("转换失败")
+            if "取消" in message or "terminated" in message.lower():
+                self.statusBar().showMessage("转换已取消")
+            else:
+                QMessageBox.critical(self, "错误", message)
+                self.statusBar().showMessage("转换失败")
             
     def closeEvent(self, event):
         """窗口关闭事件，保存设置"""
