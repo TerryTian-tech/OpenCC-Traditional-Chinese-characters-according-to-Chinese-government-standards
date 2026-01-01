@@ -975,7 +975,7 @@ class ModernUI(QMainWindow):
                 font-size: 16px;
             }
             QPushButton#cancelButton:hover {
-            background-color: #c0392b;
+                background-color: #c0392b;
             }
         """)
         
@@ -1431,6 +1431,7 @@ class ModernUI(QMainWindow):
         self.start_button.setEnabled(True)
         self.cancel_button.setEnabled(False)
         self.progress_label.setText("已取消")
+
     def conversion_finished(self, success, message):
         """转换完成"""
         self.start_button.setEnabled(True)
