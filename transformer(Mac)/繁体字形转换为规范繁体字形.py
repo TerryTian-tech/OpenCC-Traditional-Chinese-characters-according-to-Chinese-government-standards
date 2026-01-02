@@ -42,6 +42,7 @@ class ConversionWorker(QThread):
         self.conversion_type = conversion_type
         self.preserve_format = preserve_format
         self.convert_footnotes = convert_footnotes
+        self._is_cancelled = False
     
     def detect_encoding(self, file_path):
         """检测文件编码，特别处理中文ANSI编码"""
@@ -158,6 +159,10 @@ class ConversionWorker(QThread):
         :param output_folder: 输出文件夹路径
         :return: 转换后的文件路径或False
         """
+        # 检查是否已取消
+        if self._is_cancelled:
+            return False
+            
         cc = OpenCC(self.conversion_type)
         
         try:
@@ -171,16 +176,32 @@ class ConversionWorker(QThread):
             
             self.log_message.emit(f"正在处理txt文件: {os.path.basename(input_path)}")
             
+            # 检查是否已取消
+            if self._is_cancelled:
+                return False
+                
             # 检测文件编码
             encoding = self.detect_encoding(input_path)
             self.log_message.emit(f"最终使用的编码: {encoding}")
             
+            # 检查是否已取消
+            if self._is_cancelled:
+                return False
+                
             # 读取文件内容
             content = self.safe_read_file(input_path, encoding)
             
+            # 检查是否已取消
+            if self._is_cancelled:
+                return False
+                
             # 繁简转换
             converted_content = cc.convert(content)
             
+            # 检查是否已取消
+            if self._is_cancelled:
+                return False
+                
             # 保存文件
             output_filename = f"convert_{os.path.basename(input_path)}"
             output_path = os.path.join(output_folder, output_filename)
@@ -221,12 +242,24 @@ class ConversionWorker(QThread):
             这是最可靠的方法，因为它直接修改XML文件
             """
             try:
+                # 检查是否已取消
+                if self.worker._is_cancelled:
+                    return False
+                    
                 # 创建临时目录
                 with tempfile.TemporaryDirectory() as temp_dir:
+                    # 检查是否已取消
+                    if self.worker._is_cancelled:
+                        return False
+                        
                     # 解压docx文件
                     with zipfile.ZipFile(input_path, 'r') as zip_ref:
                         zip_ref.extractall(temp_dir)
                     
+                    # 检查是否已取消
+                    if self.worker._is_cancelled:
+                        return False
+                        
                     # 转换脚注XML文件
                     footnotes_path = os.path.join(temp_dir, 'word', 'footnotes.xml')
                     if os.path.exists(footnotes_path):
@@ -235,12 +268,20 @@ class ConversionWorker(QThread):
                     else:
                         self.worker.log_message.emit("文档中没有脚注")
                     
+                    # 检查是否已取消
+                    if self.worker._is_cancelled:
+                        return False
+                        
                     # 转换尾注XML文件（如果有）
                     endnotes_path = os.path.join(temp_dir, 'word', 'endnotes.xml')
                     if os.path.exists(endnotes_path):
                         self._convert_xml_file(endnotes_path)
                         self.worker.log_message.emit("已转换尾注内容")
                     
+                    # 检查是否已取消
+                    if self.worker._is_cancelled:
+                        return False
+                        
                     # 重新压缩为docx文件
                     with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
                         for root, dirs, files in os.walk(temp_dir):
@@ -259,6 +300,10 @@ class ConversionWorker(QThread):
         def _convert_xml_file(self, xml_path):
             """转换XML文件中的文本内容"""
             try:
+                # 检查是否已取消
+                if self.worker._is_cancelled:
+                    return
+                    
                 # 读取XML文件
                 tree = ET.parse(xml_path)
                 root = tree.getroot()
@@ -276,6 +321,10 @@ class ConversionWorker(QThread):
                 # 查找所有文本节点
                 text_elements = root.findall('.//w:t', namespaces)
                 for elem in text_elements:
+                    # 检查是否已取消
+                    if self.worker._is_cancelled:
+                        return
+                        
                     if elem.text:
                         elem.text = self.convert_text(elem.text)
                 
@@ -290,9 +339,17 @@ class ConversionWorker(QThread):
         def _convert_xml_file_with_regex(self, xml_path):
             """使用正则表达式转换XML文件中的文本内容（备用方法）"""
             try:
+                # 检查是否已取消
+                if self.worker._is_cancelled:
+                    return
+                    
                 with open(xml_path, 'r', encoding='utf-8') as f:
                     content = f.read()
                 
+                # 检查是否已取消
+                if self.worker._is_cancelled:
+                    return
+                    
                 # 使用正则表达式找到XML标签外的文本内容并转换
                 def convert_text_in_xml(match):
                     # 匹配文本内容但不匹配标签属性
@@ -307,6 +364,10 @@ class ConversionWorker(QThread):
                 pattern = r'>([^<]+?)<'
                 converted_content = re.sub(pattern, convert_text_in_xml, content)
                 
+                # 检查是否已取消
+                if self.worker._is_cancelled:
+                    return
+                    
                 with open(xml_path, 'w', encoding='utf-8') as f:
                     f.write(converted_content)
                     
@@ -317,6 +378,10 @@ class ConversionWorker(QThread):
             """
             转换整个Word文档，保留所有格式（包含脚注和尾注转换）
             """
+            # 检查是否已取消
+            if self.worker._is_cancelled:
+                return None
+                
             if output_path is None:
                 filename, ext = os.path.splitext(input_path)
                 output_path = f"convert_{filename}{ext}"
@@ -326,6 +391,10 @@ class ConversionWorker(QThread):
             # 首先处理脚注和尾注（通过zip操作）
             temp_output = output_path + ".temp.docx"
             footnote_success = self._convert_footnotes_using_zip_manipulation(input_path, temp_output)
+            
+            # 检查是否已取消
+            if self.worker._is_cancelled:
+                return None
             
             if footnote_success:
                 # 如果脚注转换成功，使用temp文件继续处理其他内容
@@ -337,14 +406,32 @@ class ConversionWorker(QThread):
                 temp_output = None
             
             try:
+                # 检查是否已取消
+                if self.worker._is_cancelled:
+                    if temp_output and os.path.exists(temp_output):
+                        os.remove(temp_output)
+                    return None
+                    
                 # 读取文档并转换其他内容
                 doc = Document(processing_file)
                 
                 # 转换正文段落
                 self._convert_paragraphs(doc.paragraphs)
                 
+                # 检查是否已取消
+                if self.worker._is_cancelled:
+                    if temp_output and os.path.exists(temp_output):
+                        os.remove(temp_output)
+                    return None
+                
                 # 转换表格内容
                 self._convert_tables(doc.tables)
+                
+                # 检查是否已取消
+                if self.worker._is_cancelled:
+                    if temp_output and os.path.exists(temp_output):
+                        os.remove(temp_output)
+                    return None
                 
                 # 转换页眉
                 for section in doc.sections:
@@ -352,6 +439,12 @@ class ConversionWorker(QThread):
                     # 转换页眉中的表格
                     if hasattr(section.header, 'tables') and section.header.tables:
                         self._convert_tables(section.header.tables)
+                    
+                    # 检查是否已取消
+                    if self.worker._is_cancelled:
+                        if temp_output and os.path.exists(temp_output):
+                            os.remove(temp_output)
+                        return None
                 
                 # 转换页脚
                 for section in doc.sections:
@@ -359,6 +452,12 @@ class ConversionWorker(QThread):
                     # 转换页脚中的表格
                     if hasattr(section.footer, 'tables') and section.footer.tables:
                         self._convert_tables(section.footer.tables)
+                    
+                    # 检查是否已取消
+                    if self.worker._is_cancelled:
+                        if temp_output and os.path.exists(temp_output):
+                            os.remove(temp_output)
+                        return None
                 
                 # 保存最终文档
                 doc.save(output_path)
@@ -388,6 +487,9 @@ class ConversionWorker(QThread):
         def _convert_paragraphs(self, paragraphs):
             """转换段落集合，保留所有格式"""
             for paragraph in paragraphs:
+                # 检查是否已取消
+                if self.worker._is_cancelled:
+                    return
                 self._convert_paragraph(paragraph)
         
         def _convert_paragraph(self, paragraph):
@@ -397,6 +499,10 @@ class ConversionWorker(QThread):
             
             # 逐个处理run，保留每个run的独立格式
             for run in paragraph.runs:
+                # 检查是否已取消
+                if self.worker._is_cancelled:
+                    return
+                    
                 if run.text.strip():
                     original_text = run.text
                     converted_text = self.convert_text(original_text)
@@ -468,7 +574,15 @@ class ConversionWorker(QThread):
         def _convert_tables(self, tables):
             """转换表格内容，保留表格格式"""
             for table in tables:
+                # 检查是否已取消
+                if self.worker._is_cancelled:
+                    return
+                    
                 for row in table.rows:
+                    # 检查是否已取消
+                    if self.worker._is_cancelled:
+                        return
+                        
                     for cell in row.cells:
                         # 转换单元格中的段落
                         self._convert_paragraphs(cell.paragraphs)
@@ -485,20 +599,35 @@ class ConversionWorker(QThread):
         :return: 转换后的文件路径
         """
         try:
+            # 检查是否已取消
+            if self._is_cancelled:
+                return False
+                
             if not os.path.exists(output_folder):
                 os.makedirs(output_folder)
                 self.log_message.emit(f"创建输出目录: {output_folder}")
             
+            # 检查是否已取消
+            if self._is_cancelled:
+                return False
+                
             if os.path.isfile(input_path) and input_path.lower().endswith('.docx'):
                 self.log_message.emit(f"正在处理: {os.path.basename(input_path)}")
                 
+                # 检查是否已取消
+                if self._is_cancelled:
+                    return False
+                    
                 # 使用新的转换器类
                 converter = self.DocxTraditionalSimplifiedConverter(self, self.conversion_type)
                 output_path = os.path.join(output_folder, f"convert_{os.path.basename(input_path)}")
-                converter.convert_document(input_path, output_path)
+                result = converter.convert_document(input_path, output_path)
                 
-                self.log_message.emit(f"已保存: {output_path}")
-                return output_path
+                if result:
+                    self.log_message.emit(f"已保存: {result}")
+                    return result
+                else:
+                    return False
                 
             else:
                 self.log_message.emit("错误：输入的路径不是有效的.docx文件")
@@ -510,12 +639,24 @@ class ConversionWorker(QThread):
 
     def process_files(self):
         """处理文件的主要逻辑"""
+        # 检查是否已取消
+        if self._is_cancelled:
+            return False
+            
         self.progress_updated.emit(0, "开始处理...")
         
+        # 检查是否已取消
+        if self._is_cancelled:
+            return False
+            
         # 处理单个文件
         if os.path.isfile(self.input_path):
             file_ext = os.path.splitext(self.input_path)[1].lower()
             
+            # 检查是否已取消
+            if self._is_cancelled:
+                return False
+                
             if file_ext == '.docx':
                 result = self.convert_docx_file(self.input_path, self.output_folder)
                 if result:
@@ -539,6 +680,10 @@ class ConversionWorker(QThread):
             # 获取所有支持的文件
             supported_files = []
             for f in os.listdir(self.input_path):
+                # 检查是否已取消
+                if self._is_cancelled:
+                    return False
+                    
                 file_ext = os.path.splitext(f)[1].lower()
                 if file_ext in ['.docx',  '.txt']:
                     supported_files.append(f)
@@ -553,6 +698,10 @@ class ConversionWorker(QThread):
             total_files = len(supported_files)
             
             for i, filename in enumerate(supported_files, 1):
+                # 检查是否已取消
+                if self._is_cancelled:
+                    return False
+                    
                 progress = int((i / total_files) * 100)
                 self.progress_updated.emit(progress, f"处理文件 {i}/{total_files}: {filename}")
                 
@@ -585,12 +734,23 @@ class ConversionWorker(QThread):
     def run(self):
         try:
             success = self.process_files()
+            
+            # 检查是否已取消
+            if self._is_cancelled:
+                self.conversion_finished.emit(False, "转换已被用户取消")
+                return
+                
             if success:
                 self.conversion_finished.emit(True, "转换成功完成")
             else:
                 self.conversion_finished.emit(False, "转换过程中出现错误")
         except Exception as e:
             self.conversion_finished.emit(False, f"转换失败: {str(e)}")
+    
+    def cancel(self):
+        """取消转换"""
+        self._is_cancelled = True
+        self.log_message.emit("用户取消转换")
 
 
 class ModernUI(QMainWindow):
@@ -608,7 +768,7 @@ class ModernUI(QMainWindow):
         
     def init_ui(self):
         # 设置窗口属性
-        self.setWindowTitle("规范繁体字形转换器 V1.1.4 For Mac/Linux")
+        self.setWindowTitle("规范繁体字形转换器 V1.1.5 For Mac/Linux")
         self.setGeometry(100, 100, 900, 750)
         self.setMinimumSize(800, 600)
         
@@ -1205,7 +1365,7 @@ class ModernUI(QMainWindow):
         
         # 描述区域
         desc_label = QLabel("""
-        <h2>规范繁体字形转换器 V1.1.4 For Mac/Linux</h2>
+        <h2>规范繁体字形转换器 V1.1.5 For Mac/Linux</h2>
         <p>专业的繁体字形转换工具，助您将繁体旧字形、异体字和港台标准的繁体字形转换为《通用规范汉字表》的规范繁体字形。</p>
         <p><b>主要特性:</b></p>
         <ul>
@@ -1336,16 +1496,10 @@ class ModernUI(QMainWindow):
     def cancel_conversion(self):
         """取消转换"""
         if hasattr(self, 'worker') and self.worker.isRunning():
-            self.worker.terminate()  # 终止线程
-            self.worker.wait()  # 等待线程结束
-            self.append_log("转换已被用户取消")
-            self.statusBar().showMessage("转换已取消")
+            self.worker.cancel()  # 调用自定义的取消方法
+            self.append_log("正在取消转换...")
+            self.statusBar().showMessage("正在取消转换...")
         
-        # 重置按钮状态
-        self.start_button.setEnabled(True)
-        self.cancel_button.setEnabled(False)
-        self.progress_label.setText("已取消")
-
     def conversion_finished(self, success, message):
         """转换完成"""
         self.start_button.setEnabled(True)
@@ -1355,7 +1509,8 @@ class ModernUI(QMainWindow):
             QMessageBox.information(self, "成功", message)
             self.statusBar().showMessage("转换完成")
         else:
-            if "取消" in message or "terminated" in message.lower():
+            if "取消" in message or "已取消" in message:
+                QMessageBox.information(self, "已取消", "转换已被用户取消")
                 self.statusBar().showMessage("转换已取消")
             else:
                 QMessageBox.critical(self, "错误", message)
@@ -1363,6 +1518,11 @@ class ModernUI(QMainWindow):
             
     def closeEvent(self, event):
         """窗口关闭事件，保存设置"""
+        # 如果转换正在进行，先取消
+        if hasattr(self, 'worker') and self.worker.isRunning():
+            self.worker.cancel()
+            self.worker.wait()
+        
         # 保存当前设置
         self.save_settings()
         event.accept()
