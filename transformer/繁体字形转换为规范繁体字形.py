@@ -442,7 +442,7 @@ class ConversionWorker(QThread):
         
         def convert_document(self, input_path, output_path=None):
             """
-            转换整个Word文档，保留所有格式（包含脚注和尾注转换）
+            转换整个Word文档，根据设置决定是否保留格式和转换脚注
             """
             # 检查是否已取消
             if self.worker._is_cancelled:
@@ -454,20 +454,25 @@ class ConversionWorker(QThread):
             
             self.worker.log_message.emit(f"开始转换文档: {input_path}")
             
-            # 首先处理脚注和尾注（通过zip操作）
-            temp_output = output_path + ".temp.docx"
-            footnote_success = self._convert_footnotes_using_zip_manipulation(input_path, temp_output)
-            
-            # 检查是否已取消
-            if self.worker._is_cancelled:
-                return None
-            
-            if footnote_success:
-                # 如果脚注转换成功，使用temp文件继续处理其他内容
-                processing_file = temp_output
+            # 首先处理脚注和尾注（通过zip操作）- 根据设置决定是否执行
+            if self.worker.convert_footnotes:
+                temp_output = output_path + ".temp.docx"
+                footnote_success = self._convert_footnotes_using_zip_manipulation(input_path, temp_output)
+                
+                # 检查是否已取消
+                if self.worker._is_cancelled:
+                    return None
+                
+                if footnote_success:
+                    # 如果脚注转换成功，使用temp文件继续处理其他内容
+                    processing_file = temp_output
+                else:
+                    # 如果脚注转换失败，使用原始文件
+                    self.worker.log_message.emit("脚注转换失败，将只转换正文内容")
+                    processing_file = input_path
+                    temp_output = None
             else:
-                # 如果脚注转换失败，使用原始文件
-                self.worker.log_message.emit("脚注转换失败，将只转换正文内容")
+                self.worker.log_message.emit("跳过脚注和尾注转换")
                 processing_file = input_path
                 temp_output = None
             
@@ -551,7 +556,7 @@ class ConversionWorker(QThread):
                     return output_path
         
         def _convert_paragraphs(self, paragraphs):
-            """转换段落集合，保留所有格式"""
+            """转换段落集合"""
             for paragraph in paragraphs:
                 # 检查是否已取消
                 if self.worker._is_cancelled:
@@ -559,23 +564,34 @@ class ConversionWorker(QThread):
                 self._convert_paragraph(paragraph)
         
         def _convert_paragraph(self, paragraph):
-            """转换单个段落，保留所有run的格式"""
+            """转换单个段落，根据设置决定是否保留格式"""
             if not paragraph.text.strip():
                 return
             
-            # 逐个处理run，保留每个run的独立格式
-            for run in paragraph.runs:
-                # 检查是否已取消
-                if self.worker._is_cancelled:
-                    return
-                    
-                if run.text.strip():
-                    original_text = run.text
+            # 如果设置了保留格式，逐个处理run
+            if self.worker.preserve_format:
+                for run in paragraph.runs:
+                    # 检查是否已取消
+                    if self.worker._is_cancelled:
+                        return
+                        
+                    if run.text.strip():
+                        original_text = run.text
+                        converted_text = self.convert_text(original_text)
+                        
+                        # 保留原有格式的情况下更新文本
+                        self._preserve_run_format(run, converted_text)
+            else:
+                # 如果不保留格式，直接转换整个段落的文本
+                if paragraph.text.strip():
+                    original_text = paragraph.text
                     converted_text = self.convert_text(original_text)
-                    
-                    # 保留原有格式的情况下更新文本
-                    self._preserve_run_format(run, converted_text)
-        
+                    # 检查是否已取消
+                    if self.worker._is_cancelled:
+                        return
+
+                    paragraph.text = converted_text
+
         def _preserve_run_format(self, run, new_text):
             """
             保留run的所有原始格式，只更新文本内容
@@ -638,7 +654,7 @@ class ConversionWorker(QThread):
                 run.font.size = original_size
         
         def _convert_tables(self, tables):
-            """转换表格内容，保留表格格式"""
+            """转换表格内容"""
             for table in tables:
                 # 检查是否已取消
                 if self.worker._is_cancelled:
@@ -887,7 +903,7 @@ class ModernUI(QMainWindow):
         
     def init_ui(self):
         # 设置窗口属性
-        self.setWindowTitle("规范繁体字形转换器 V1.1.5")
+        self.setWindowTitle("规范繁体字形转换器 V1.1.6")
         self.setGeometry(100, 100, 900, 750)
         self.setMinimumSize(800, 600)
         
@@ -1420,17 +1436,17 @@ class ModernUI(QMainWindow):
         advanced_layout = QVBoxLayout()
         advanced_layout.setSpacing(10)
         
-        # 保留格式选项 - 设置为灰色不可用
-        self.preserve_format_cb = QCheckBox("保留Word文档的原有格式")
+        # 保留格式选项 - 设置为不可用
+        self.preserve_format_cb = QCheckBox("尽量保留Word文档的原有格式")
         self.preserve_format_cb.setChecked(True)
         self.preserve_format_cb.setEnabled(False)  # 设置为不可用
         self.preserve_format_cb.setToolTip("此选项已固定启用，不可更改")
         
-        # 转换脚注选项 - 设置为灰色不可用
+        # 转换脚注选项 - 设置为可用
         self.convert_footnotes_cb = QCheckBox("转换Word文档里的脚注和尾注")
         self.convert_footnotes_cb.setChecked(True)
-        self.convert_footnotes_cb.setEnabled(False)  # 设置为不可用
-        self.convert_footnotes_cb.setToolTip("此选项已固定启用，不可更改")
+        self.convert_footnotes_cb.setEnabled(True)  # 设置为可用
+        self.convert_footnotes_cb.setToolTip("是否转换文档中的脚注和尾注内容")
         
         advanced_layout.addWidget(self.preserve_format_cb)
         advanced_layout.addWidget(self.convert_footnotes_cb)
@@ -1484,7 +1500,7 @@ class ModernUI(QMainWindow):
         
         # 描述区域
         desc_label = QLabel("""
-        <h2>规范繁体字形转换器 V1.1.5</h2>
+        <h2>规范繁体字形转换器 V1.1.6</h2>
         <p>专业的繁体字形转换工具，助您将繁体旧字形、异体字和港台标准的繁体字形转换为《通用规范汉字表》的规范繁体字形。</p>
         <p><b>主要特性:</b></p>
         <ul>
@@ -1580,19 +1596,25 @@ class ModernUI(QMainWindow):
         }
         conversion_type = conversion_types[self.type_combo.currentText()]
         
+        # 获取转换选项的实际值
+        preserve_format = self.preserve_format_cb.isChecked()
+        convert_footnotes = self.convert_footnotes_cb.isChecked()
+        
+        # 在日志中显示当前设置
+        self.append_log(f"转换设置：保留格式={preserve_format}，转换脚注={convert_footnotes}")
+        
         # 启动转换线程
         self.start_button.setEnabled(False)
         self.cancel_button.setEnabled(True)
         self.progress_bar.setValue(0)
         self.log_text.clear()
         
-        # 注意：由于复选框已禁用，我们总是传递True值
         self.worker = ConversionWorker(
             input_path, 
             output_path,
             conversion_type,
             True,  # preserve_format 固定为True
-            True   # convert_footnotes 固定为True
+            convert_footnotes  # 使用复选框的实际值
         )
         self.worker.progress_updated.connect(self.update_progress)
         self.worker.conversion_finished.connect(self.conversion_finished)
