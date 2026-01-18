@@ -1512,8 +1512,9 @@ class ModernUI(QMainWindow):
         </ul>
         <p><b>请从以下页面获取本工具最新版本：</p>
         <ul>
-              <p>Github：https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards
-              <p>Gitee：https://gitee.com/terrytian-tech/tonggui-traditional-chinese
+              <p>主仓库（Github）：https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards
+              <p>镜像1（Gitee）：https://gitee.com/terrytian-tech/tonggui-traditional-chinese
+              <p>镜像2（GitCode）：https://gitcode.com/TerryTian-tech/OpenCC-Tonggui-Traditional-Chinese              
         </ul>
         <p><b>本软件遵循Apache-2.0开源协议发布。</p>
         """)
