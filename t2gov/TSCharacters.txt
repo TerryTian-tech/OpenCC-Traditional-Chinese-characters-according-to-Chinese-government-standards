@@ -1,3 +1,14 @@
+# Open Chinese Convert (OpenCC) Dictionary (Third-party)
+# File: TSCharacters.txt
+# Format: key	value(s) (values separated by spaces)
+# Contributors: TerryTian-tech
+# License: Apache License 2.0
+# Source: https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards
+# Description: Convert Traditional Chinese to Simplified Chinese, based on Open Chinese Convert Dictionary(https://github.com/BYVoid/OpenCC/blob/master/data/dictionary/TSCharacters.txt).
+# Examples : 錄 → 录; 録 → 录
+# Reference: 《通用规范汉字表》(2013)
+# Used in configs: t2s.json
+
 𠗣	㓆
 𡞵	㛟
 𡢃	㛠

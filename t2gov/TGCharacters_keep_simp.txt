@@ -1,3 +1,14 @@
+# Open Chinese Convert (OpenCC) Dictionary (Third-party)
+# File: TGCharacters_keep_simp.txt
+# Format: key	value(s) (values separated by spaces)
+# Contributors: TerryTian-tech, Yi Jianpeng, Hu Xinmei, Duan Yatong
+# License: Apache License 2.0
+# Source: https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards
+# Description: Only standardize Traditional Chinese characters to the Chinese government standards; Simplified Chinese characters remain unchanged.
+# Examples : 啟 → 啓; 淨 → 净; 讪 → 讪; 讫 → 讫; 驭 → 驭
+# Reference: 《通用规范汉字表》(2013)
+# Used in configs: t2gov_keep_simp.json
+
 㨗	捷
 讐	仇 讎
 閤	閤 闔 閣

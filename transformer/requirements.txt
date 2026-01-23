@@ -1,5 +1,5 @@
 chardet==5.2.0
-opencc==1.1.9
+opencc==1.2.0
 PyQt5==5.15.11
 pyqt5_sip==12.17.2
 python_docx==1.2.0

@@ -1,3 +1,14 @@
+# Open Chinese Convert (OpenCC) Dictionary (Third-party)
+# File: TGPhrases.txt
+# Format: key	value(s) (values separated by spaces)
+# Contributors: TerryTian-tech, Yi Jianpeng, Hu Xinmei, Duan Yatong
+# License: Apache License 2.0
+# Source: https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards
+# Description: Standardize Traditional Chinese vocabulary according to the Chinese government standards.
+# Examples : 只不過 → 衹不過; 沖霄漢外 → 衝霄漢外
+# Reference: 《通用规范汉字表》(2013)
+# Used in configs: t2gov.json, t2gov_keep_simp.json
+
 㓦劃	㓦劃
 一乾二淨	一乾二净
 一乾而盡	一乾而盡
@@ -9038,6 +9049,7 @@
 台州	台州
 台州地區	台州地區
 台州市	台州市
+台灣	臺灣
 叱吒叱叱吒	叱咤叱叱咤
 叱吒叱吒叱吒吒	叱咤叱咤叱咤咤
 叱吒樂壇	叱咤樂壇
@@ -35992,6 +36004,7 @@
 胖姑娘坐小轎兒	胖姑娘坐小轎兒
 胚胎幹	胚胎幹
 胚胎發生	胚胎發生
+胚胎发育	胚胎發育
 胚葉	胚葉
 胜肽	胜肽
 胜鍵	胜鍵
@@ -42349,6 +42362,7 @@
 軟困	軟困
 軟軟鬆鬆	軟軟鬆鬆
 軟體出版協會	軟體出版協會
+軟體動物	軟體動物
 軟麪筋	軟麵筋
 軫念	軫念
 軸承合金	軸承合金
@@ -49154,7 +49168,6 @@
 梅菉賦	梅菉賦
 梅菉志	梅菉志
 梅菉街道	梅菉街道
-台灣	臺灣
 才是	纔是
 ‌錢杏邨	‌錢杏邨
 馬南邨	馬南邨

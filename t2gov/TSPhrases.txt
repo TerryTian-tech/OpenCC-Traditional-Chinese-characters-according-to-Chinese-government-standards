@@ -1,3 +1,14 @@
+# Open Chinese Convert (OpenCC) Dictionary (Third-party)
+# File: TSPhrases.txt
+# Format: key	value(s) (values separated by spaces)
+# Contributors: TerryTian-tech
+# License: Apache License 2.0
+# Source: https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards
+# Description: Convert Traditional Chinese to Simplified Chinese, based on Open Chinese Convert Dictionary(https://github.com/BYVoid/OpenCC/blob/master/data/dictionary/TSPhrases.txt).
+# Examples : 不瞭解 → 不了解; 乾乾淨淨 → 干干净净
+# Reference: 《通用规范汉字表》(2013)
+# Used in configs: t2s.json
+
 一目瞭然	一目了然
 上鍊	上链
 不瞭解	不了解

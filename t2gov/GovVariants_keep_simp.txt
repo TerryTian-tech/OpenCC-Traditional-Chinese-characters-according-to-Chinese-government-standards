@@ -1,3 +1,14 @@
+# Open Chinese Convert (OpenCC) Dictionary (Third-party)
+# File: GovVariants_keep_simp.txt
+# Format: key	value(s) (values separated by spaces)
+# Contributors: TerryTian-tech
+# License: Apache License 2.0
+# Source: https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards
+# Description: Convert old Chinese Glyphs to Printed Common Traditional Chinese Characters, but retain the existing simplified and variant characters in the document.
+# Examples : 奧 → 奥; 顚 → 顛；讪 → 讪; 讫 → 讫; 驭 → 驭
+# Reference: 《通用规范汉字表》(2013)
+# Used in configs: t2new_keep_simp.json
+
 盫	盦
 㘭	坳
 翶	翱
