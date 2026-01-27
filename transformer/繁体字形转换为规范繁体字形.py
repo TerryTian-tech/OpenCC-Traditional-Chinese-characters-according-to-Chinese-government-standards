@@ -25,7 +25,7 @@ from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 
 import re
-
+import pythoncom
 
 class ConversionWorker(QThread):
     """
@@ -160,6 +160,7 @@ class ConversionWorker(QThread):
         :param output_folder: 输出文件夹路径
         :return: 转换后的DOCX文件路径或False
         """
+        pythoncom.CoInitialize()
         try:
             # 检查是否已取消
             if self._is_cancelled:
@@ -175,23 +176,43 @@ class ConversionWorker(QThread):
             
             self.log_message.emit(f"正在转换DOC文件: {os.path.basename(input_path)}")
             
-            # 创建Word应用程序实例
-            word = win32.gencache.EnsureDispatch('Word.Application')
-            word.Visible = False  # 不显示Word界面
+            # 尝试使用Word.Application，如果失败则使用wps.Application
+            word_app = None
+            try:
+                # 尝试使用Microsoft Word
+                self.log_message.emit("尝试使用Microsoft Word...")
+                word_app = win32.gencache.EnsureDispatch('Word.Application')
+            except Exception as word_error:
+                self.log_message.emit(f"Microsoft Word不可用: {str(word_error)}")
+                try:
+                    # 尝试使用WPS
+                    self.log_message.emit("尝试使用WPS Office...")
+                    word_app = win32.gencache.EnsureDispatch('kwps.Application')
+                except Exception as wps_error:
+                    self.log_message.emit(f"WPS Office也不可用: {str(wps_error)}")
+                    self.log_message.emit("错误：未找到Microsoft Word或WPS Office，无法转换DOC文件")
+                    return False
+            
+            if word_app is None:
+                self.log_message.emit("错误：无法创建应用程序对象")
+                return False
+                
+            word_app.Visible = False  # 不显示应用程序界面
             
             try:
                 # 检查是否已取消
                 if self._is_cancelled:
-                    word.Quit()
+                    word_app.Quit()
                     return False
                     
                 # 打开DOC文件
-                doc = word.Documents.Open(input_path)
+                self.log_message.emit("正在打开DOC文件...")
+                doc = word_app.Documents.Open(input_path)
                 
                 # 检查是否已取消
                 if self._is_cancelled:
                     doc.Close()
-                    word.Quit()
+                    word_app.Quit()
                     return False
                     
                 # 生成输出文件名
@@ -200,10 +221,13 @@ class ConversionWorker(QThread):
                 output_path = os.path.join(output_folder, docx_filename)
                 
                 # 保存为DOCX格式
+                self.log_message.emit("正在保存为DOCX格式...")
                 doc.SaveAs(output_path, FileFormat=16)  # 16代表docx格式
                 doc.Close()
                 
-                self.log_message.emit(f"已转换为DOCX文件: {output_path}")
+                # 记录使用的应用程序类型
+                app_type = "Microsoft Word" if "Word" in str(type(word_app)) else "WPS Office"
+                self.log_message.emit(f"使用{app_type}成功转换为DOCX文件: {output_path}")
                 return output_path
                 
             except Exception as e:
@@ -211,9 +235,12 @@ class ConversionWorker(QThread):
                 return False
                 
             finally:
-                # 确保Word应用程序被关闭
-                word.Quit()
-                
+                # 确保应用程序被关闭
+                try:
+                    word_app.Quit()
+                except:
+                    pass
+                    
         except Exception as e:
             self.log_message.emit(f"处理DOC文件 {input_path} 时出错: {str(e)}")
             return False
