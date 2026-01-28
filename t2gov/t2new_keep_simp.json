@@ -1,5 +1,5 @@
 {
-  "name": "Traditional Chinese to Traditional Chinese (New characters)",
+  "name": "Traditional Chinese (old Glyphs) to Traditional Chinese (Printed Common characters) with Simplified Chinese remaining unchanged",
   "segmentation": {
     "type": "mmseg",
     "dict": {

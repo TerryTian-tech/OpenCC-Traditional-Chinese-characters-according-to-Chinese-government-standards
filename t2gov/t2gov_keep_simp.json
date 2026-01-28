@@ -1,5 +1,5 @@
 {
-  "name": "Traditional Chinese to Traditional Chinese (Chinese Government standard)",
+  "name": "Traditional Chinese to Traditional Chinese (Chinese Government standard) with Simplified Chinese remaining unchanged",
   "segmentation": {
     "type": "mmseg",
     "dict": {
