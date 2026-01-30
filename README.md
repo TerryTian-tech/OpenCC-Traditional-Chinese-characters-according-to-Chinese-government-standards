@@ -17,7 +17,7 @@ OpenCC转换的配置文件存于本仓库的“t2gov”文件夹下，使用者
 
 繁体转换为规范繁体的方案文件为t2gov.json，字表*文件名为TGCharacters.txt，词典文件名为TGPhrases.txt。
 
->考虑到部分繁体文档是使用内地的输入法软件打出来的，存在不少繁简混杂的情形，因此字表（TGCharacters.txt）第1667行后加入了多组简→规范繁体的转换以改善繁简混杂的状态。如果使用者转换的文档本身就包含简体内容，那么应使用t2gov_keep_simp.json作为方案文件，TGCharacters_keep_simp.txt作为字表。但是命中OpenCC转换词典的简体字仍然会被转换，使用后请注意校对。
+>考虑到部分繁体文档是使用内地的输入法软件打出来的，存在不少繁简混杂的情形，因此字表（TGCharacters.txt）第1669行后加入了多组简→规范繁体的转换以改善繁简混杂的状态。如果使用者转换的文档本身就包含简体内容，那么应使用t2gov_keep_simp.json作为方案文件，TGCharacters_keep_simp.txt作为字表。但是命中OpenCC转换词典的简体字仍然会被转换，使用后请注意校对。
 
 只转换繁体旧字形到新字形的方案文件为t2new.json，字表文件名为GovVariants.txt。这个方案会保留大部分异体字不转换。
 
@@ -48,4 +48,4 @@ OpenCC转换的配置文件存于本仓库的“t2gov”文件夹下，使用者
 
 ## 许可协议
 
-Apache License 2.0
+[Apache License 2.0](https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/blob/main/LICENSE)
