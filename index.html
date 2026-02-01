@@ -287,6 +287,7 @@
             text-decoration: none;
             font-weight: 600;
             transition: all 0.3s;
+            height: 54px; /* 固定高度与其他按钮保持一致 */
         }
         
         .download-btn:hover {
@@ -307,7 +308,16 @@
             background-color: #222;
         }
         
-        /* Windows版本选择器样式 */
+        /* GitCode按钮在PC端调整尺寸 */
+        @media (min-width: 769px) {
+            .gitcode-btn {
+                min-width: 220px; /* 增加最小宽度 */
+                padding: 15px 30px; /* 增加内边距 */
+                font-size: 1rem; /* 保持字体大小一致 */
+            }
+        }
+        
+        /* Windows版本选择器样式 - 修改布局 */
         .windows-selector {
             display: flex;
             flex-direction: column;
@@ -315,28 +325,7 @@
             gap: 10px;
         }
         
-        .windows-dropdown {
-            padding: 10px 15px;
-            border-radius: var(--border-radius);
-            border: 1px solid #ddd;
-            background-color: white;
-            color: var(--primary-color);
-            font-weight: 500;
-            cursor: pointer;
-            width: 200px;
-            transition: all 0.3s;
-        }
-        
-        .windows-dropdown:hover {
-            border-color: var(--secondary-color);
-        }
-        
-        .windows-dropdown:focus {
-            outline: none;
-            border-color: var(--secondary-color);
-            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
-        }
-        
+        /* 调整下载按钮和下拉框的顺序 - 按钮在上，下拉框在下 */
         .windows-download-btn {
             display: flex;
             align-items: center;
@@ -349,6 +338,8 @@
             transition: all 0.3s;
             min-width: 200px;
             justify-content: center;
+            height: 54px; /* 与其他按钮保持一致的高度 */
+            order: 1; /* 按钮在上方 */
         }
         
         .windows-download-btn:hover {
@@ -359,6 +350,30 @@
         .windows-download-btn i {
             margin-right: 10px;
             font-size: 1.2rem;
+        }
+        
+        .windows-dropdown {
+            padding: 10px 15px;
+            border-radius: var(--border-radius);
+            border: 1px solid #ddd;
+            background-color: white;
+            color: var(--primary-color);
+            font-weight: 500;
+            cursor: pointer;
+            width: 200px;
+            transition: all 0.3s;
+            order: 2; /* 下拉框在按钮下方 */
+            margin-top: 5px; /* 给下拉框一点上边距 */
+        }
+        
+        .windows-dropdown:hover {
+            border-color: var(--secondary-color);
+        }
+        
+        .windows-dropdown:focus {
+            outline: none;
+            border-color: var(--secondary-color);
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
         }
         
         .install-steps {
@@ -498,7 +513,7 @@
                 align-items: center;
             }
             
-            .download-btn {
+            .download-btn, .windows-download-btn {
                 width: 100%;
                 max-width: 300px;
                 justify-content: center;
@@ -515,6 +530,12 @@
             
             .windows-download-btn {
                 width: 100%;
+            }
+            
+            /* 移动端保持原有样式，不应用PC端的特殊样式 */
+            .gitcode-btn {
+                min-width: auto;
+                padding: 15px 25px;
             }
         }
         
@@ -692,15 +713,15 @@
                 <p>选择适合您操作系统的版本，或直接访问GitHub仓库获取源代码和详细文档。</p>
                 
                 <div class="download-buttons">
-                    <!-- Windows版本选择器 -->
+                    <!-- Windows版本选择器 - 调整布局：按钮在上，下拉框在下 -->
                     <div class="windows-selector">
+                        <a id="windowsDownloadBtn" class="windows-download-btn" href="https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/releases/download/Transformer(1.2.0)/Traditional-Chinese-Transformer_1.2.0_setup_for_Win10+.exe" target="_blank">
+                            <i class="fab fa-windows"></i> Windows版本
+                        </a>
                         <select class="windows-dropdown" id="windowsVersionSelect">
                             <option value="win10">Windows 10 +</option>
                             <option value="win7">Windows 7 +</option>
                         </select>
-                        <a id="windowsDownloadBtn" class="windows-download-btn" href="https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/releases/download/Transformer(1.2.0)/Traditional-Chinese-Transformer_1.2.0_setup_for_Win10+.exe" target="_blank">
-                            <i class="fab fa-windows"></i> Windows版本
-                        </a>
                     </div>
                     
                     <a href="https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/releases/download/Transformer(1.2.0)/traditional-chinese-transformer_1.2.0.deb" class="download-btn" target="_blank">
@@ -711,7 +732,7 @@
                         <i class="fab fa-gitee"></i> Gitee下载镜像
                     </a>
                     
-                    <a href="https://gitcode.com/TerryTian-tech/OpenCC-Tonggui-Traditional-Chinese/releases" class="download-btn github-btn" target="_blank">
+                    <a href="https://gitcode.com/TerryTian-tech/OpenCC-Tonggui-Traditional-Chinese/releases" class="download-btn github-btn gitcode-btn" target="_blank">
                         <i class="fab fa-gitcode"></i> GitCode下载镜像
                     </a>
                 </div>
@@ -720,7 +741,8 @@
                     <h4>安装说明</h4>
                     <ol>
                         <li>根据您的操作系统选择相应的安装包</li>
-                        <li>Windows用户请注意选择正确的版本：Windows 10/11 或 Windows 7</li>
+                        <li>Windows用户请注意选择 Windows 10/11 或 Windows 7</li>
+                        <li>Windows用户卸载本软件只需删除程序所在文件夹即可</li>
                         <li>Linux用户请下载.deb包并使用包管理器安装</li>
                         <li>如需源代码或Python包，请访问GitHub仓库</li>
                     </ol>
