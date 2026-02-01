@@ -910,7 +910,7 @@ class ModernUI(QMainWindow):
         dark_palette.setColor(QPalette.Base, QColor(30, 30, 30))
         dark_palette.setColor(QPalette.AlternateBase, QColor(43, 43, 43))
         dark_palette.setColor(QPalette.ToolTipBase, Qt.white)
-        dark_palette.setColor(QPalette.ToolTipText, Qt.white)
+        dark_palette.setColor(QPalette.ToolTipText, Qt.black)
         dark_palette.setColor(QPalette.Text, Qt.white)
         dark_palette.setColor(QPalette.Button, QColor(43, 43, 43))
         dark_palette.setColor(QPalette.ButtonText, Qt.white)
