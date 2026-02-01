@@ -1,6 +1,8 @@
 chardet==5.2.0
 opencc==1.2.0
-PyQt5==5.15.11
-pyqt5_sip==12.17.2
+PySide6==6.9.1
+PySide6==6.10.1
+PySide6_Addons==6.9.1
+PySide6_Essentials==6.9.1
 python_docx==1.2.0
 pywin32==311
