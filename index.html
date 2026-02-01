@@ -307,6 +307,60 @@
             background-color: #222;
         }
         
+        /* Windows版本选择器样式 */
+        .windows-selector {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .windows-dropdown {
+            padding: 10px 15px;
+            border-radius: var(--border-radius);
+            border: 1px solid #ddd;
+            background-color: white;
+            color: var(--primary-color);
+            font-weight: 500;
+            cursor: pointer;
+            width: 200px;
+            transition: all 0.3s;
+        }
+        
+        .windows-dropdown:hover {
+            border-color: var(--secondary-color);
+        }
+        
+        .windows-dropdown:focus {
+            outline: none;
+            border-color: var(--secondary-color);
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+        }
+        
+        .windows-download-btn {
+            display: flex;
+            align-items: center;
+            background-color: var(--primary-color);
+            color: white;
+            padding: 15px 25px;
+            border-radius: var(--border-radius);
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s;
+            min-width: 200px;
+            justify-content: center;
+        }
+        
+        .windows-download-btn:hover {
+            background-color: #1a252f;
+            transform: translateY(-3px);
+        }
+        
+        .windows-download-btn i {
+            margin-right: 10px;
+            font-size: 1.2rem;
+        }
+        
         .install-steps {
             text-align: left;
             max-width: 600px;
@@ -448,6 +502,19 @@
                 width: 100%;
                 max-width: 300px;
                 justify-content: center;
+            }
+            
+            .windows-selector {
+                width: 100%;
+                max-width: 300px;
+            }
+            
+            .windows-dropdown {
+                width: 100%;
+            }
+            
+            .windows-download-btn {
+                width: 100%;
             }
         }
         
@@ -625,18 +692,38 @@
                 <p>选择适合您操作系统的版本，或直接访问GitHub仓库获取源代码和详细文档。</p>
                 
                 <div class="download-buttons">
-                    <a href="https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/releases/download/Transformer(1.2.0)/Traditional-Chinese-Transformer_1.2.0_setup_for_Win10+.exe" class="download-btn" target="_blank">
-                        <i class="fab fa-windows"></i> Windows版本
-                    </a>
+                    <!-- Windows版本选择器 -->
+                    <div class="windows-selector">
+                        <select class="windows-dropdown" id="windowsVersionSelect">
+                            <option value="win10">Windows 10 +</option>
+                            <option value="win7">Windows 7 +</option>
+                        </select>
+                        <a id="windowsDownloadBtn" class="windows-download-btn" href="https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/releases/download/Transformer(1.2.0)/Traditional-Chinese-Transformer_1.2.0_setup_for_Win10+.exe" target="_blank">
+                            <i class="fab fa-windows"></i> Windows版本
+                        </a>
+                    </div>
+                    
                     <a href="https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/releases/download/Transformer(1.2.0)/traditional-chinese-transformer_1.2.0.deb" class="download-btn" target="_blank">
                         <i class="fab fa-linux"></i> Linux版本
                     </a>
+                    
                     <a href="https://gitee.com/terrytian-tech/tonggui-traditional-chinese/releases" class="download-btn github-btn" target="_blank">
                         <i class="fab fa-gitee"></i> Gitee下载镜像
                     </a>
+                    
                     <a href="https://gitcode.com/TerryTian-tech/OpenCC-Tonggui-Traditional-Chinese/releases" class="download-btn github-btn" target="_blank">
                         <i class="fab fa-gitcode"></i> GitCode下载镜像
                     </a>
+                </div>
+                
+                <div class="install-steps">
+                    <h4>安装说明</h4>
+                    <ol>
+                        <li>根据您的操作系统选择相应的安装包</li>
+                        <li>Windows用户请注意选择正确的版本：Windows 10/11 或 Windows 7</li>
+                        <li>Linux用户请下载.deb包并使用包管理器安装</li>
+                        <li>如需源代码或Python包，请访问GitHub仓库</li>
+                    </ol>
                 </div>
             </div>
         </div>
@@ -723,6 +810,40 @@
                     });
                 }
             });
+        });
+        
+        // Windows版本选择功能
+        const windowsVersionSelect = document.getElementById('windowsVersionSelect');
+        const windowsDownloadBtn = document.getElementById('windowsDownloadBtn');
+        
+        // 版本链接映射
+        const versionLinks = {
+            'win10': 'https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/releases/download/Transformer(1.2.0)/Traditional-Chinese-Transformer_1.2.0_setup_for_Win10+.exe',
+            'win7': 'https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/releases/download/Transformer(1.2.0)/Traditional-Chinese-Transformer_1.2.0_setup_for_Win7.exe'
+        };
+        
+        // 初始化时设置默认链接
+        windowsDownloadBtn.href = versionLinks[windowsVersionSelect.value];
+        
+        // 监听下拉菜单变化
+        windowsVersionSelect.addEventListener('change', function() {
+            const selectedVersion = this.value;
+            windowsDownloadBtn.href = versionLinks[selectedVersion];
+            
+            // 更新按钮文本以显示选择的版本
+            const versionText = this.options[this.selectedIndex].text;
+            windowsDownloadBtn.innerHTML = `<i class="fab fa-windows"></i> ${versionText}`;
+        });
+        
+        // 添加上下文提示
+        windowsVersionSelect.addEventListener('focus', function() {
+            this.style.borderColor = 'var(--secondary-color)';
+            this.style.boxShadow = '0 0 0 2px rgba(52, 152, 219, 0.2)';
+        });
+        
+        windowsVersionSelect.addEventListener('blur', function() {
+            this.style.borderColor = '#ddd';
+            this.style.boxShadow = 'none';
         });
     </script>
 </body>
