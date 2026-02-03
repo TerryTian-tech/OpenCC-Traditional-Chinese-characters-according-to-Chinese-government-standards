@@ -931,7 +931,7 @@ class ModernUI(QMainWindow):
         
     def init_ui(self):
         # 设置窗口属性
-        self.setWindowTitle("规范繁体字形转换器 V1.2.0")
+        self.setWindowTitle("规范繁体字形转换器 V1.2.1")
         self.setGeometry(100, 100, 900, 750)
         self.setMinimumSize(800, 600)
         
@@ -1529,7 +1529,7 @@ class ModernUI(QMainWindow):
         
         # 描述区域
         desc_label = QLabel("""
-        <h2>规范繁体字形转换器 V1.2.0</h2>
+        <h2>规范繁体字形转换器 V1.2.1</h2>
         <p>专业的繁体字形转换工具，助您将繁体旧字形、异体字和港台标准的繁体字形转换为《通用规范汉字表》的规范繁体字形。</p>
         <p><b>主要特性:</b></p>
         <ul>
