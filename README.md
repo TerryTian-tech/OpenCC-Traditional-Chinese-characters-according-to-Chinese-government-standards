@@ -28,8 +28,6 @@ OpenCC转换的配置文件存于本仓库的“t2gov”文件夹下，使用者
 
 繁体转换为简体的方案文件为t2s.json，字表文件名为TSCharacters.txt，词典文件名为TSPhrases.txt。
 
->繁体转简体方案基于OpenCC默认字表和词库修订，简体字中存在部分《通用规范汉字表》表外的类推简化字，有待进一步清理。
-
 简体转换为规范繁体的方案文件为s2t.json，字表文件名为STCharacters.txt，词典文件名为STPhrases.txt。
 
 “transformer”文件夹下提供了一个Python转换程序。在Windows系统上，使用者在部署好Python环境后，在Powershell里执行 pip install opencc python-docx chardet lxml pywin32 pyside6 命令，安装依赖。安装成功后，将“t2gov”文件夹下所有文件复制到C:\Users\administrator(注：此处为你的计算机用户名，默认名称为administrator或admin，如有微软账户一般则为微软账户名)\AppData\Local\Programs\Python\Python313(注：此处为你安装的Python版本号，如有多个文件夹取数字最大的那个)\Lib\site-packages\opencc\clib\share\opencc下，再下载“transformer”文件夹里的转换程序并运行，即可实现doc文档、docx文档及txt文件的繁体字形转换。对于想在Windows下使用转换程序但不想体验繁琐的部署、安装流程的使用者，请直接移步[Releases](https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/releases)选择适合你系统环境的包下载安装即可。
