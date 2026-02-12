@@ -1578,7 +1578,7 @@ class ModernUI(QMainWindow):
         cancel_button.setText("取消")
 
         # 显示对话框并等待用户选择
-        choice = msg_box.exec_()
+        choice = msg_box.exec()
     
         if choice == QMessageBox.StandardButton.Yes:  # 文件夹
             path = QFileDialog.getExistingDirectory(self, "选择输入文件夹")
