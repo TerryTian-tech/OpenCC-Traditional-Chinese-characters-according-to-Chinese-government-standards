@@ -45,7 +45,7 @@ OpenCC转换的配置文件存于本仓库的“t2gov”文件夹下，使用者
 
 ## 使用本转换方案的项目
 
-* [opencc-wasm](https://www.npmjs.com/package/opencc-wasm) ([website](https://opencc.js.org/))
+* [opencc-wasm](https://www.npmjs.com/package/opencc-wasm) ([website](https://opencc.js.org/)) 维护者：[frankslin](https://github.com/frankslin)
 
 ## 许可协议
 
