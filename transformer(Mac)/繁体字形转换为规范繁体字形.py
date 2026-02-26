@@ -6,11 +6,14 @@ import codecs
 import chardet
 import zipfile
 import xml.etree.ElementTree as ET
+import urllib.request
+import urllib.error
+import json
 
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QPushButton, QTextEdit, QFileDialog, QLabel, QProgressBar,
                              QMessageBox, QGroupBox, QComboBox, QCheckBox, QLineEdit,
-                             QStyleFactory,QTabWidget, QListWidget, QSplitter, QMenuBar,
+                             QStyleFactory, QTabWidget, QListWidget, QSplitter, QMenuBar,
                              QMenu, QRadioButton, QButtonGroup)
 from PySide6.QtCore import Qt, QThread, Signal, QSettings
 from PySide6.QtGui import QIcon, QFont, QPixmap, QColor, QPalette, QAction, QActionGroup
@@ -23,6 +26,50 @@ from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 
 import re
+
+
+# 版本常量
+VERSION = "1.2.5"
+
+
+# 更新检查线程
+class UpdateChecker(QThread):
+    update_checked = Signal(bool, str, str)  # (有新版本?, 新版本号, 下载页面URL)
+
+    def run(self):
+        try:
+            url = "https://api.github.com/repos/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/releases/latest"
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=5) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                latest_tag = data.get('tag_name', '')
+                
+                # 使用正则提取版本号（从 "Transformer(1.2.4)" 中提取 "1.2.4"）
+                import re
+                match = re.search(r'(\d+\.\d+\.\d+)', latest_tag)
+                if match:
+                    latest_version = match.group(1)
+                else:
+                    # 如果标签格式不符合预期，仍使用原字符串，但后续比较会失败
+                    latest_version = latest_tag
+
+                download_url = data.get('html_url', 'https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/releases/latest')
+
+                # 当前版本（已在程序开头定义）
+                current_parts = [int(x) for x in VERSION.split('.')]
+                try:
+                    latest_parts = [int(x) for x in latest_version.split('.')]
+                except ValueError:
+                    # 提取到的版本号格式不正确，认为检查失败
+                    self.update_checked.emit(False, '', f"无法解析最新版本号：{latest_version}")
+                    return
+
+                # 版本比较
+                has_new = latest_parts > current_parts
+                self.update_checked.emit(has_new, latest_version, download_url)
+
+        except Exception as e:
+            self.update_checked.emit(False, '', f"检查失败：{str(e)}")
 
 
 class ConversionWorker(QThread):
@@ -783,8 +830,8 @@ class ModernUI(QMainWindow):
         self.init_ui()
         
     def init_ui(self):
-        # 设置窗口属性
-        self.setWindowTitle("规范繁体字形转换器 V1.2.4 For Mac/Linux")
+        # 设置窗口属性，版本号使用 VERSION 常量
+        self.setWindowTitle(f"规范繁体字形转换器 V{VERSION}For Mac/Linux")
         self.setGeometry(100, 100, 900, 750)
         self.setMinimumSize(800, 600)
         
@@ -1381,8 +1428,8 @@ class ModernUI(QMainWindow):
         layout.setContentsMargins(15, 15, 15, 15)
         
         # 描述区域
-        desc_label = QLabel("""
-        <h2>规范繁体字形转换器 V1.2.4 For Mac/Linux</h2>
+        desc_label = QLabel(f"""
+        <h2>规范繁体字形转换器 V{VERSION} For Mac/Linux</h2>
         <p>专业的繁体字形转换工具，助您将繁体旧字形、异体字和港台标准的繁体字形转换为《通用规范汉字表》的规范繁体字形。</p>
         <p><b>主要特性:</b></p>
         <ul>
@@ -1403,9 +1450,41 @@ class ModernUI(QMainWindow):
         desc_label.setWordWrap(True)
         desc_label.setAlignment(Qt.AlignLeft)
         layout.addWidget(desc_label)
+        check_update_btn = QPushButton("检查更新")
+        check_update_btn.setObjectName("browseButton")
+        check_update_btn.clicked.connect(self.check_for_updates)
+        layout.addWidget(check_update_btn, alignment=Qt.AlignCenter)
         
         layout.addStretch()
         return tab
+    
+    # 检查更新方法
+    def check_for_updates(self):
+        """检查是否有新版本"""
+        self.statusBar().showMessage("正在检查更新...")
+        self.update_checker = UpdateChecker()
+        self.update_checker.update_checked.connect(self.on_update_checked)
+        self.update_checker.start()
+    
+    # 处理更新检查结果
+    def on_update_checked(self, has_new, latest_version, url):
+        if has_new:
+            reply = QMessageBox.question(
+                self,
+                "发现新版本",
+                f"当前版本：{VERSION}\n最新版本：{latest_version}\n\n是否前往下载页面？",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.Yes
+            )
+            if reply == QMessageBox.Yes:
+                import webbrowser
+                webbrowser.open(url)
+        elif latest_version == '' and '失败' in url:
+            # 错误情况
+            QMessageBox.warning(self, "检查更新失败", url)
+        else:
+            QMessageBox.information(self, "检查更新", f"当前已是最新版本{VERSION}。")
+        self.statusBar().showMessage("就绪")
         
     def browse_input(self):
         """浏览输入路径"""
