@@ -2,7 +2,6 @@ import os
 import sys
 import tempfile
 import shutil
-import codecs
 import chardet
 import zipfile
 import xml.etree.ElementTree as ET
@@ -166,19 +165,19 @@ class ConversionWorker(QThread):
         # 优先尝试GB18030，因为它兼容GB2312和GBK
         if encoding.lower() in ['gb2312', 'gbk']:
             try:
-                with codecs.open(file_path, 'r', encoding='gb18030', errors='strict') as f:
+                with open(file_path, 'r', encoding='gb18030', errors='strict') as f:
                     return f.read()
             except UnicodeDecodeError as e:
                 self.log_message.emit(f"GB18030严格模式读取失败: {e}，尝试原编码")
         
         try:
-            with codecs.open(file_path, 'r', encoding=encoding, errors='strict') as f:
+            with open(file_path, 'r', encoding=encoding, errors='strict') as f:
                 return f.read()
         except UnicodeDecodeError:
             # 如果严格模式失败，尝试使用errors='ignore'
             self.log_message.emit(f"使用严格模式读取失败，尝试忽略错误字符")
             try:
-                with codecs.open(file_path, 'r', encoding=encoding, errors='ignore') as f:
+                with open(file_path, 'r', encoding=encoding, errors='ignore') as f:
                     content = f.read()
                     # 检查读取的内容是否包含有效的中文字符
                     if any('\u4e00' <= char <= '\u9fff' for char in content):
@@ -186,13 +185,13 @@ class ConversionWorker(QThread):
                     else:
                         # 如果没有中文字符，可能是编码错误，尝试GB18030
                         self.log_message.emit("读取内容不包含中文字符，尝试GB18030编码")
-                        with codecs.open(file_path, 'r', encoding='gb18030', errors='ignore') as f2:
+                        with open(file_path, 'r', encoding='gb18030', errors='ignore') as f2:
                             return f2.read()
             except Exception as e:
                 self.log_message.emit(f"读取文件时发生错误: {e}")
                 # 最后尝试使用GB18030
                 try:
-                    with codecs.open(file_path, 'r', encoding='gb18030', errors='ignore') as f:
+                    with open(file_path, 'r', encoding='gb18030', errors='ignore') as f:
                         return f.read()
                 except Exception as e2:
                     self.log_message.emit(f"最终读取失败: {e2}")
@@ -252,7 +251,7 @@ class ConversionWorker(QThread):
             output_filename = f"convert_{os.path.basename(input_path)}"
             output_path = os.path.join(output_folder, output_filename)
             
-            with codecs.open(output_path, 'w', encoding='utf-8') as f:
+            with open(output_path, 'w', encoding='utf-8') as f:
                 f.write(converted_content)
             
             self.log_message.emit(f"已保存: {output_path}")
