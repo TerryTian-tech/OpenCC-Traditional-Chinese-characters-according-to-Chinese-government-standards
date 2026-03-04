@@ -28,7 +28,7 @@ import re
 
 
 # 版本常量
-VERSION = "1.2.5"
+VERSION = "1.2.6"
 
 
 # 更新检查线程
@@ -197,9 +197,166 @@ class ConversionWorker(QThread):
                     self.log_message.emit(f"最终读取失败: {e2}")
                     return ""
 
+    def convert_srt_file(self, input_path, output_folder):
+        """
+        将SRT字幕文件转换为繁体/简体
+        SRT格式示例：
+        1
+        00:00:01,000 --> 00:00:04,000
+        字幕文本内容
+
+        2
+        00:00:05,000 --> 00:00:08,000
+        第二句字幕文本
+        :param input_path: 输入文件路径
+        :param output_folder: 输出文件夹路径
+        :return: 转换后的文件路径或False
+        """
+        # 检查是否已取消
+        if self._is_cancelled:
+            return False
+            
+        cc = OpenCC(self.conversion_type)
+        
+        try:
+            if not os.path.exists(input_path):
+                self.log_message.emit(f"错误：文件不存在 - {input_path}")
+                return False
+                
+            if not os.path.exists(output_folder):
+                os.makedirs(output_folder)
+                self.log_message.emit(f"创建输出目录: {output_folder}")
+            
+            self.log_message.emit(f"正在处理SRT字幕文件: {os.path.basename(input_path)}")
+            
+            # 检查是否已取消
+            if self._is_cancelled:
+                return False
+                
+            # 检测文件编码
+            encoding = self.detect_encoding(input_path)
+            self.log_message.emit(f"最终使用的编码: {encoding}")
+            
+            # 检查是否已取消
+            if self._is_cancelled:
+                return False
+                
+            # 读取文件内容
+            content = self.safe_read_file(input_path, encoding)
+            
+            # 检查是否已取消
+            if self._is_cancelled:
+                return False
+            
+            # 解析SRT文件并转换字幕文本
+            # SRT格式：序号行、时间码行、字幕文本行（可能多行）、空行
+            lines = content.split('\n')
+            converted_lines = []
+            i = 0
+            
+            while i < len(lines):
+                # 检查是否已取消
+                if self._is_cancelled:
+                    return False
+                    
+                line = lines[i]
+                
+                # 检查是否是序号行（纯数字）
+                if line.strip().isdigit():
+                    converted_lines.append(line)  # 序号行不转换
+                    i += 1
+                    
+                    if i < len(lines):
+                        # 下一行应该是时间码行
+                        time_line = lines[i]
+                        if '-->' in time_line:
+                            converted_lines.append(time_line)  # 时间码行不转换
+                            i += 1
+                            
+                            # 读取字幕文本行（直到遇到空行或下一个序号）
+                            while i < len(lines):
+                                text_line = lines[i]
+                                # 空行表示字幕块结束
+                                if text_line.strip() == '':
+                                    converted_lines.append(text_line)
+                                    i += 1
+                                    break
+                                # 如果遇到数字行（下一个字幕块的序号），停止
+                                if text_line.strip().isdigit():
+                                    break
+                                # 转换字幕文本，保留ASS/SSA样式标签
+                                converted_text = self._convert_srt_text_with_tags(cc, text_line)
+                                converted_lines.append(converted_text)
+                                i += 1
+                        else:
+                            # 不是标准SRT格式，直接保留
+                            converted_lines.append(line)
+                            i += 1
+                    else:
+                        i += 1
+                else:
+                    # 不是序号行，可能是空行或其他内容
+                    converted_lines.append(line)
+                    i += 1
+            
+            # 检查是否已取消
+            if self._is_cancelled:
+                return False
+                
+            # 合并转换后的内容
+            converted_content = '\n'.join(converted_lines)
+            
+            # 保存文件
+            output_filename = f"convert_{os.path.basename(input_path)}"
+            output_path = os.path.join(output_folder, output_filename)
+            
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(converted_content)
+            
+            self.log_message.emit(f"已保存: {output_path}")
+            return output_path
+            
+        except Exception as e:
+            self.log_message.emit(f"处理SRT字幕文件 {input_path} 时出错: {str(e)}")
+            return False
+
+    def _convert_srt_text_with_tags(self, cc, text):
+        """
+        转换SRT字幕文本，但保留ASS/SSA样式标签内的内容不变
+        ASS/SSA样式标签格式: {\tag1 value1\tag2 value2...}
+        例如: {\fn微软雅黑\fs13\fscx130\fscy130\3c&HFF8000&}字幕文本{\r}
+        
+        :param cc: OpenCC转换器实例
+        :param text: 原始字幕文本
+        :return: 转换后的字幕文本
+        """
+        # 查找所有样式标签 {...}
+        result = []
+        last_end = 0
+        
+        # 使用正则表达式匹配 {...} 样式标签
+        pattern = re.compile(r'\{[^}]*\}')
+        
+        for match in pattern.finditer(text):
+            # 转换标签之前的普通文本
+            plain_text = text[last_end:match.start()]
+            if plain_text:
+                result.append(cc.convert(plain_text))
+            
+            # 保留样式标签内容不变
+            result.append(match.group())
+            last_end = match.end()
+        
+        # 转换最后一个标签之后的普通文本
+        remaining_text = text[last_end:]
+        if remaining_text:
+            result.append(cc.convert(remaining_text))
+        
+        return ''.join(result)
+
     def convert_txt_file(self, input_path, output_folder):
         """
-        将txt文件转换为简体
+        将txt文件转换为繁体/简体
         :param input_path: 输入文件路径
         :param output_folder: 输出文件夹路径
         :return: 转换后的文件路径或False
@@ -733,8 +890,15 @@ class ConversionWorker(QThread):
                     return True
                 else:
                     return False
+            elif file_ext == '.srt':
+                result = self.convert_srt_file(self.input_path, self.output_folder)
+                if result:
+                    self.progress_updated.emit(100, "转换完成!")
+                    return True
+                else:
+                    return False
             else:
-                self.log_message.emit("错误：不支持的文件格式，仅支持docx和txt文件")
+                self.log_message.emit("错误：不支持的文件格式，仅支持docx、txt、srt文件")
                 return False
         
         # 处理文件夹
@@ -747,11 +911,11 @@ class ConversionWorker(QThread):
                     return False
                     
                 file_ext = os.path.splitext(f)[1].lower()
-                if file_ext in ['.docx',  '.txt']:
+                if file_ext in ['.docx', '.txt', '.srt']:
                     supported_files.append(f)
             
             if not supported_files:
-                self.log_message.emit("在指定文件夹中未找到支持的.docx或.txt文件")
+                self.log_message.emit("在指定文件夹中未找到支持的docx、txt或srt文件")
                 return False
                 
             self.log_message.emit(f"找到 {len(supported_files)} 个文件待处理")
@@ -783,6 +947,10 @@ class ConversionWorker(QThread):
                 
                 elif file_ext == '.txt':
                     if self.convert_txt_file(file_path, self.output_folder):
+                        success_count += 1
+                
+                elif file_ext == '.srt':
+                    if self.convert_srt_file(file_path, self.output_folder):
                         success_count += 1
             
             self.log_message.emit(f"处理完成！成功转换 {success_count}/{total_files} 个文件")
@@ -1432,7 +1600,7 @@ class ModernUI(QMainWindow):
         <p>专业的繁体字形转换工具，助您将繁体旧字形、异体字和港台标准的繁体字形转换为《通用规范汉字表》的规范繁体字形。</p>
         <p><b>主要特性:</b></p>
         <ul>
-            <li>支持DOCX、TXT文档繁体字形转换</li>
+            <li>支持DOCX文档、TXT文本文件、SRT字幕文件的繁体字形转换</li>
             <li>基于《通用规范汉字表》</li>
             <li>转换后保留原文档格式</li>
             <li>支持批量处理文件</li>
@@ -1518,7 +1686,7 @@ class ModernUI(QMainWindow):
         elif choice == QMessageBox.StandardButton.No:  # 文件
             paths, _ = QFileDialog.getOpenFileNames(
                 self, "选择文件", "", 
-                "文档文件 (*.docx *.txt);;所有文件 (*)"
+                "文档文件 (*.docx *.txt *.srt);;所有文件 (*)"
             )
             if paths:
                 # 如果选择了多个文件，只使用第一个或者让用户选择文件夹
