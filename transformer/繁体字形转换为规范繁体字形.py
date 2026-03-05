@@ -449,6 +449,315 @@ class ConversionWorker(QThread):
         
         return ''.join(result)
 
+    def convert_ass_file(self, input_path, output_folder):
+        """
+        将ASS/SSA字幕文件转换为繁体/简体
+        ASS/SSA格式包含多个部分：
+        [Script Info] - 脚本信息
+        [V4+ Styles] / [V4 Styles] - 样式定义
+        [Events] - 字幕事件
+        [Fonts] / [Graphics] - 字体和图片（可选）
+        
+        只转换 [Events] 部分中的字幕文本，保留样式标签 {...}
+        :param input_path: 输入文件路径
+        :param output_folder: 输出文件夹路径
+        :return: 转换后的文件路径或False
+        """
+        # 检查是否已取消
+        if self._is_cancelled:
+            return False
+            
+        cc = OpenCC(self.conversion_type)
+        
+        try:
+            if not os.path.exists(input_path):
+                self.log_message.emit(f"错误：文件不存在 - {input_path}")
+                return False
+                
+            if not os.path.exists(output_folder):
+                os.makedirs(output_folder)
+                self.log_message.emit(f"创建输出目录: {output_folder}")
+            
+            self.log_message.emit(f"正在处理ASS/SSA字幕文件: {os.path.basename(input_path)}")
+            
+            # 检查是否已取消
+            if self._is_cancelled:
+                return False
+                
+            # 检测文件编码
+            encoding = self.detect_encoding(input_path)
+            self.log_message.emit(f"最终使用的编码: {encoding}")
+            
+            # 检查是否已取消
+            if self._is_cancelled:
+                return False
+                
+            # 读取文件内容
+            content = self.safe_read_file(input_path, encoding)
+            
+            # 检查是否已取消
+            if self._is_cancelled:
+                return False
+            
+            lines = content.split('\n')
+            converted_lines = []
+            in_events_section = False
+            
+            for line in lines:
+                # 检查是否已取消
+                if self._is_cancelled:
+                    return False
+                
+                stripped_line = line.strip()
+                
+                # 检测是否进入 [Events] 部分
+                if stripped_line.lower() == '[events]':
+                    in_events_section = True
+                    converted_lines.append(line)
+                    continue
+                
+                # 检测是否离开 [Events] 部分（进入其他部分）
+                if stripped_line.startswith('[') and stripped_line.endswith(']'):
+                    in_events_section = False
+                    converted_lines.append(line)
+                    continue
+                
+                # 在 [Events] 部分处理字幕行
+                if in_events_section and (stripped_line.lower().startswith('dialogue:') or 
+                                          stripped_line.lower().startswith('comment:')):
+                    converted_line = self._convert_ass_dialogue_line(cc, line)
+                    converted_lines.append(converted_line)
+                else:
+                    # 其他部分保持不变（样式定义、脚本信息等）
+                    converted_lines.append(line)
+            
+            # 检查是否已取消
+            if self._is_cancelled:
+                return False
+                
+            # 合并转换后的内容
+            converted_content = '\n'.join(converted_lines)
+            
+            # 保存文件
+            output_filename = f"convert_{os.path.basename(input_path)}"
+            output_path = os.path.join(output_folder, output_filename)
+            
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(converted_content)
+            
+            self.log_message.emit(f"已保存: {output_path}")
+            return output_path
+            
+        except Exception as e:
+            self.log_message.emit(f"处理ASS/SSA字幕文件 {input_path} 时出错: {str(e)}")
+            return False
+
+    def _convert_ass_dialogue_line(self, cc, line):
+        """
+        转换ASS/SSA字幕对话行
+        格式: Dialogue: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
+        或: Dialogue: Marked,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text (SSA格式)
+        
+        只转换 Text 字段，保留 ASS 样式标签 {...}
+        
+        :param cc: OpenCC转换器实例
+        :param line: 原始对话行
+        :return: 转换后的对话行
+        """
+        # 查找 "Dialogue:" 或 "Comment:" 的位置
+        line_lower = line.lower()
+        if line_lower.startswith('dialogue:'):
+            prefix = line[:9]  # "Dialogue:"
+            rest = line[9:]
+        elif line_lower.startswith('comment:'):
+            prefix = line[:8]  # "Comment:"
+            rest = line[8:]
+        else:
+            return line
+        
+        # ASS/SSA 字段用逗号分隔，但文本字段可能包含逗号
+        # 标准格式有 10 个字段，文本是最后一个字段
+        parts = rest.split(',', 9)  # 最多分割9次，得到10个部分
+        
+        if len(parts) < 10:
+            # 格式不完整，直接返回原行
+            return line
+        
+        # 前9个字段保持不变（Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect）
+        # 第10个字段是文本，需要转换但保留样式标签
+        text_field = parts[9]
+        
+        # 使用与 SRT 相同的方法处理文本（保留 {...} 样式标签）
+        converted_text = self._convert_srt_text_with_tags(cc, text_field)
+        
+        # 重新组合
+        parts[9] = converted_text
+        return prefix + ','.join(parts)
+
+    def convert_lrc_file(self, input_path, output_folder):
+        """
+        将LRC歌词文件转换为繁体/简体
+        LRC格式示例：
+        [ti:歌名]
+        [ar:歌手]
+        [al:专辑]
+        [00:01.23]歌词文本
+        [00:02.34]第二句歌词
+        [00:03.45]<01>增强<02>型<03>歌词
+        
+        ID标签（ti, ar, al, by, offset等）中的内容也需要转换
+        时间标签 [mm:ss.xx] 保持不变
+        增强型标签 <xx> 保持不变
+        :param input_path: 输入文件路径
+        :param output_folder: 输出文件夹路径
+        :return: 转换后的文件路径或False
+        """
+        # 检查是否已取消
+        if self._is_cancelled:
+            return False
+            
+        cc = OpenCC(self.conversion_type)
+        
+        try:
+            if not os.path.exists(input_path):
+                self.log_message.emit(f"错误：文件不存在 - {input_path}")
+                return False
+                
+            if not os.path.exists(output_folder):
+                os.makedirs(output_folder)
+                self.log_message.emit(f"创建输出目录: {output_folder}")
+            
+            self.log_message.emit(f"正在处理LRC歌词文件: {os.path.basename(input_path)}")
+            
+            # 检查是否已取消
+            if self._is_cancelled:
+                return False
+                
+            # 检测文件编码
+            encoding = self.detect_encoding(input_path)
+            self.log_message.emit(f"最终使用的编码: {encoding}")
+            
+            # 检查是否已取消
+            if self._is_cancelled:
+                return False
+                
+            # 读取文件内容
+            content = self.safe_read_file(input_path, encoding)
+            
+            # 检查是否已取消
+            if self._is_cancelled:
+                return False
+            
+            lines = content.split('\n')
+            converted_lines = []
+            
+            # ID标签列表，这些标签中的内容也需要转换
+            id_tags = ['ti', 'ar', 'al', 'by', 're', 've', 'offset']
+            
+            for line in lines:
+                # 检查是否已取消
+                if self._is_cancelled:
+                    return False
+                
+                stripped_line = line.strip()
+                
+                if not stripped_line:
+                    converted_lines.append(line)
+                    continue
+                
+                # 处理 ID 标签 [tag:content]
+                id_tag_match = re.match(r'^\[([a-zA-Z]+):(.+)\]$', stripped_line)
+                if id_tag_match:
+                    tag_name = id_tag_match.group(1).lower()
+                    tag_content = id_tag_match.group(2)
+                    
+                    if tag_name in id_tags:
+                        # 转换 ID 标签内容（如歌名、歌手名等）
+                        converted_content = cc.convert(tag_content)
+                        converted_line = f'[{id_tag_match.group(1)}:{converted_content}]'
+                        # 保留原始行的缩进
+                        indent = line[:line.index('[')]
+                        converted_lines.append(indent + converted_line)
+                    else:
+                        converted_lines.append(line)
+                    continue
+                
+                # 处理歌词行 [mm:ss.xx]歌词文本 或 [mm:ss.xxx]歌词文本
+                # 时间标签格式: [mm:ss.xx] 或 [mm:ss.xxx] 或 [mm:ss.xx][mm:ss.xx]（双时间标签）
+                time_tag_pattern = r'^((?:\[\d+:\d+(?:\.\d+)?\])+)(.*)$'
+                time_match = re.match(time_tag_pattern, stripped_line)
+                
+                if time_match:
+                    time_tags = time_match.group(1)  # 时间标签部分，可能有多个
+                    lyric_text = time_match.group(2)  # 歌词文本部分
+                    
+                    # 转换歌词文本，保留增强型标签 <xx>
+                    converted_lyric = self._convert_lrc_lyric_text(cc, lyric_text)
+                    
+                    # 保留原始行的缩进
+                    indent = line[:line.index('[')] if '[' in line else ''
+                    converted_lines.append(indent + time_tags + converted_lyric)
+                else:
+                    # 不匹配任何格式，保持原样
+                    converted_lines.append(line)
+            
+            # 检查是否已取消
+            if self._is_cancelled:
+                return False
+                
+            # 合并转换后的内容
+            converted_content = '\n'.join(converted_lines)
+            
+            # 保存文件
+            output_filename = f"convert_{os.path.basename(input_path)}"
+            output_path = os.path.join(output_folder, output_filename)
+            
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(converted_content)
+            
+            self.log_message.emit(f"已保存: {output_path}")
+            return output_path
+            
+        except Exception as e:
+            self.log_message.emit(f"处理LRC歌词文件 {input_path} 时出错: {str(e)}")
+            return False
+
+    def _convert_lrc_lyric_text(self, cc, text):
+        """
+        转换LRC歌词文本，保留增强型时间标签 <xx>
+        增强型LRC格式: <01>歌<02>词<03>文<04>字
+        每个字前面可能有时间标签，用于精确到字的时间同步
+        
+        :param cc: OpenCC转换器实例
+        :param text: 原始歌词文本
+        :return: 转换后的歌词文本
+        """
+        if not text:
+            return text
+        
+        result = []
+        last_end = 0
+        
+        # 匹配增强型时间标签 <数字>
+        pattern = re.compile(r'<\d+>')
+        
+        for match in pattern.finditer(text):
+            # 转换标签之前的歌词文本
+            plain_text = text[last_end:match.start()]
+            if plain_text:
+                result.append(cc.convert(plain_text))
+            
+            # 保留增强型时间标签
+            result.append(match.group())
+            last_end = match.end()
+        
+        # 转换最后一个标签之后的歌词文本
+        remaining_text = text[last_end:]
+        if remaining_text:
+            result.append(cc.convert(remaining_text))
+        
+        return ''.join(result)
+
     def convert_txt_file(self, input_path, output_folder):
         """
         将txt文件转换为繁体/简体
@@ -1019,8 +1328,22 @@ class ConversionWorker(QThread):
                     return True
                 else:
                     return False
+            elif file_ext in ['.ass', '.ssa']:
+                result = self.convert_ass_file(self.input_path, self.output_folder)
+                if result:
+                    self.progress_updated.emit(100, "转换完成!")
+                    return True
+                else:
+                    return False
+            elif file_ext == '.lrc':
+                result = self.convert_lrc_file(self.input_path, self.output_folder)
+                if result:
+                    self.progress_updated.emit(100, "转换完成!")
+                    return True
+                else:
+                    return False
             else:
-                self.log_message.emit("错误：不支持的文件格式，仅支持doc、docx、txt、srt文件")
+                self.log_message.emit("错误：不支持的文件格式，仅支持doc、docx、txt、srt、ass、ssa、lrc文件")
                 return False
         
         # 处理文件夹
@@ -1033,11 +1356,11 @@ class ConversionWorker(QThread):
                     return False
                     
                 file_ext = os.path.splitext(f)[1].lower()
-                if file_ext in ['.doc', '.docx', '.txt', '.srt']:
+                if file_ext in ['.doc', '.docx', '.txt', '.srt', '.ass', '.ssa', '.lrc']:
                     supported_files.append(f)
             
             if not supported_files:
-                self.log_message.emit("在指定文件夹中未找到支持的doc、docx、txt或srt文件")
+                self.log_message.emit("在指定文件夹中未找到支持的doc、docx、txt、srt、ass、ssa、lrc文件")
                 return False
                 
             self.log_message.emit(f"找到 {len(supported_files)} 个文件待处理")
@@ -1099,6 +1422,14 @@ class ConversionWorker(QThread):
                 
                 elif file_ext == '.srt':
                     if self.convert_srt_file(file_path, self.output_folder):
+                        success_count += 1
+                
+                elif file_ext in ['.ass', '.ssa']:
+                    if self.convert_ass_file(file_path, self.output_folder):
+                        success_count += 1
+                
+                elif file_ext == '.lrc':
+                    if self.convert_lrc_file(file_path, self.output_folder):
                         success_count += 1
             
             self.log_message.emit(f"处理完成！成功转换 {success_count}/{total_files} 个文件")
@@ -1748,7 +2079,7 @@ class ModernUI(QMainWindow):
         <p>专业的繁体字形转换工具，助您将繁体旧字形、异体字和港台标准的繁体字形转换为《通用规范汉字表》的规范繁体字形。</p>
         <p><b>主要特性:</b></p>
         <ul>
-            <li>支持DOC/DOCX文档、TXT文本文件、SRT字幕文件的繁体字形转换</li>
+            <li>支持Word文档、TXT文本文件、字幕文件的繁体字形转换</li>
             <li>基于《通用规范汉字表》</li>
             <li>转换后保留原文档格式</li>
             <li>支持批量处理文件</li>
@@ -1834,7 +2165,7 @@ class ModernUI(QMainWindow):
         elif choice == QMessageBox.StandardButton.No:  # 文件
             paths, _ = QFileDialog.getOpenFileNames(
                 self, "选择文件", "", 
-                "文档文件 (*.doc *.docx *.txt *.srt);;所有文件 (*)"
+                "文档文件 (*.doc *.docx *.txt *.srt *.ass *.ssa *.lrc);;所有文件 (*)"
             )
             if paths:
                 # 如果选择了多个文件，只使用第一个或者让用户选择文件夹
