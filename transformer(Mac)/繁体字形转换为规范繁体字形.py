@@ -1329,7 +1329,7 @@ class ModernUI(QMainWindow):
         
     def init_ui(self):
         # 设置窗口属性，版本号使用 VERSION 常量
-        self.setWindowTitle(f"规范繁体字形转换器 V{VERSION}For Mac/Linux")
+        self.setWindowTitle(f"规范繁体字形转换器 V{VERSION} For Mac/Linux")
         self.setGeometry(100, 100, 900, 750)
         self.setMinimumSize(800, 600)
         
