@@ -7,6 +7,8 @@ import zipfile
 import xml.etree.ElementTree as ET
 import win32com.client as win32
 import msvcrt
+import certifi
+import ssl
 import urllib.request
 import urllib.error
 import json
@@ -31,7 +33,7 @@ import pythoncom
 
 
 # 版本常量
-VERSION = "1.2.6"
+VERSION = "1.2.7"
 
 
 # 更新检查线程
@@ -41,8 +43,9 @@ class UpdateChecker(QThread):
     def run(self):
         try:
             url = "https://api.github.com/repos/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/releases/latest"
+            ssl_context = ssl.create_default_context(cafile=certifi.where())
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=5) as response:
+            with urllib.request.urlopen(req, context=ssl_context, timeout=5) as response:
                 data = json.loads(response.read().decode('utf-8'))
                 latest_tag = data.get('tag_name', '')
                 
@@ -55,7 +58,7 @@ class UpdateChecker(QThread):
                     # 如果标签格式不符合预期，仍使用原字符串，但后续比较会失败
                     latest_version = latest_tag
 
-                download_url = data.get('html_url', 'https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/releases/latest')
+                download_url = data.get('html_url', 'https://gitee.com/terrytian-tech/tonggui-traditional-chinese/releases/latest')
 
                 # 当前版本（已在程序开头定义）
                 current_parts = [int(x) for x in VERSION.split('.')]
