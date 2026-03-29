@@ -5,3 +5,4 @@ PySide6_Addons==6.9.1
 PySide6_Essentials==6.9.1
 python_docx==1.2.0
 pywin32==311
+certifi==2026.2.25
