@@ -30,11 +30,30 @@ OpenCC转换的配置文件存于本仓库的“t2gov”文件夹下，使用者
 
 简体转换为规范繁体的方案文件为s2t.json，字表文件名为STCharacters.txt，词典文件名为STPhrases.txt。
 
-“transformer”文件夹下提供了一个Python转换程序。在Windows系统上，使用者在部署好Python环境后，在Powershell里执行 pip install opencc python-docx chardet lxml pywin32 pyside6 命令，安装依赖。安装成功后，将“t2gov”文件夹下所有文件复制到C:\Users\administrator(注：此处为你的计算机用户名，默认名称为administrator或admin，如有微软账户一般则为微软账户名)\AppData\Local\Programs\Python\Python313(注：此处为你安装的Python版本号，如有多个文件夹取数字最大的那个)\Lib\site-packages\opencc\clib\share\opencc下，再下载“transformer”文件夹里的转换程序并运行，即可实现doc文档、docx文档及txt文件的繁体字形转换。对于想在Windows下使用转换程序但不想体验繁琐的部署、安装流程的使用者，请直接移步[Releases](https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/releases)选择适合你系统环境的包下载安装即可。
+“transformer”文件夹下提供了一套模块化的 Python 转换程序，由 `main.py` 作为程序入口统一调度，内部为 `constants.py`（版本常量）、`updater.py`（在线更新检测）、`text_converter.py`（TXT/SRT/ASS/LRC 转换与编码检测）和 `doc_converter.py`（Word 文档转换）四个模块。如果使用者希望自行部署转换程序，可以按以下说明操作。
 
-在Mac和Linux发行版下，请使用本仓库“transformer(Mac)”下提供的转换程序。该程序仅支持docx文档、txt文件和字幕文件的繁体字形转换，使用前需要使用者先安装部署好Python环境，在终端中执行 pip install opencc python-docx chardet lxml pyside6 命令安装依赖，然后将本仓库“t2gov”下所有文件复制到Python打包的OpenCC储存转换方案的目录下（先执行pip show opencc命令找到OpenCC包具体所在位置，储存转换方案的位置一般在opencc/clib/share/opencc下，若不是可尝试搜索t2s.json等文件所在位置）。最后下载“transformer”文件夹里的转换程序并运行，即可实现docx文档、txt文件和字幕文件的繁体字形转换。
+在 Windows 系统上，使用者需部署好 Python 运行环境。然后打开终端（PowerShell），进入项目目录，执行以下命令安装并运行：
 
-在Windows系统上部分场景下转换doc文档时会出现错误提示“AttributeError: module ‘win32com.gen_py.00020905-0000-4B30-A977-D214852036FFx0x3x0’ has no attribute ‘CLSIDToClassMap’”。如出现该错误，可尝试删除C:\Users\administrator（注：此处为你的计算机用户名，默认名称为administrator或admin，如有微软账户一般则为微软账户名）\AppData\Local\Temp\gen_py\3.13(注：此处为你安装的Python版本号)下的缓存文件夹00020905-0000-4B30-A977-D214852036FFx0x3x0，再重新运行转换器。如果错误提示代号并非00020905-0000-4B30-A977-D214852036FFx0x3x0，亦可照此操作以排除故障。
+```bash
+git clone https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards.git
+cd OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/transformer
+pip install -r requirements.txt
+Copy-Item -Path "..\t2gov\*" -Destination "$(python -c "import opencc, os; print(os.path.join(os.path.dirname(opencc.__file__), 'clib', 'share', 'opencc'))")" -Recurse -Force
+python main.py
+```
+
+在 Linux 发行版和 Mac 下，可使用 “transformer-linux” 文件夹下的转换程序。该程序仅支持 docx 文档、txt 文件和字幕文件的繁体字形转换，暂不支持doc文档的转换。使用者需部署好 Python 运行环境，然后打开终端，执行以下命令安装并运行：
+
+```bash
+git clone https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards.git
+cd OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/transformer-linux
+pip install -r requirements.txt
+cp -rf ../t2gov/* "$(python3 -c "import opencc, os; print(os.path.join(os.path.dirname(opencc.__file__), 'clib', 'share', 'opencc'))")"
+python3 main.py
+```
+
+> [!NOTE]
+>在Windows系统上，部分情况下转换doc文档时会出现错误提示“AttributeError: module ‘win32com.gen_py.00020905-0000-4B30-A977-D214852036FFx0x3x0’ has no attribute ‘CLSIDToClassMap’”。如出现该错误，可尝试删除C:\Users\administrator（注：此处为你的计算机用户名，默认名称为administrator或admin，如有微软账户一般则为微软账户名）\AppData\Local\Temp\gen_py\3.13(注：此处为你安装的Python版本号)下的缓存文件夹00020905-0000-4B30-A977-D214852036FFx0x3x0，再重新运行转换器。如果错误提示代号并非00020905-0000-4B30-A977-D214852036FFx0x3x0，亦可照此操作以排除故障。
 
 ## 特别注意
 由于《通用规范汉字表》规定的异体—正体映射关系相对简单、不完全符合实际情况，本转换方案依据《现代汉语词典》《辞海》对部分异体字▶正体字转换关系作出了调整。本方案不能视为与《通用规范汉字表》的规定完全一致。
