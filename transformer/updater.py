@@ -30,7 +30,7 @@ class UpdateChecker(QThread):
                     # 如果标签格式不符合预期，仍使用原字符串，但后续比较会失败
                     latest_version = latest_tag
 
-                download_url = data.get('html_url', 'https://gitee.com/terrytian-tech/tonggui-traditional-chinese/releases/latest')
+                download_url = 'https://gitee.com/terrytian-tech/tonggui-traditional-chinese/releases/latest'
 
                 # 当前版本（已在程序开头定义）
                 current_parts = [int(x) for x in VERSION.split('.')]
