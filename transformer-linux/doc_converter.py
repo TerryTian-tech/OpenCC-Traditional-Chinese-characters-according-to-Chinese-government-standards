@@ -1,15 +1,13 @@
 import os
 import re
+import difflib
 import tempfile
 import shutil
 import zipfile
-import xml.etree.ElementTree as ET
 
 from docx import Document
 from opencc import OpenCC
 from docx.shared import Pt, RGBColor
-from docx.oxml.ns import qn
-from docx.oxml import OxmlElement
 
 from text_converter import detect_encoding, safe_read_file
 
@@ -103,46 +101,14 @@ class DocxTraditionalSimplifiedConverter:
             return False
 
     def _convert_xml_file(self, xml_path):
-        """转换XML文件中的文本内容"""
-        try:
-            # 检查是否已取消
-            if self.is_cancelled_callback and self.is_cancelled_callback():
-                return
+        """
+        转换XML文件（footnotes.xml / endnotes.xml）中的文本内容。
 
-            # 读取XML文件
-            tree = ET.parse(xml_path)
-            root = tree.getroot()
-
-            # 定义XML命名空间
-            namespaces = {
-                'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
-                'wp': 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing'
-            }
-
-            # 注册命名空间以便XPath查询
-            for prefix, uri in namespaces.items():
-                ET.register_namespace(prefix, uri)
-
-            # 查找所有文本节点
-            text_elements = root.findall('.//w:t', namespaces)
-            for elem in text_elements:
-                # 检查是否已取消
-                if self.is_cancelled_callback and self.is_cancelled_callback():
-                    return
-
-                if elem.text:
-                    elem.text = self.convert_text(elem.text)
-
-            # 保存修改后的XML
-            tree.write(xml_path, encoding='utf-8', xml_declaration=True)
-
-        except Exception as e:
-            self.log(f"转换XML文件 {xml_path} 时出错: {e}")
-            # 如果XML解析失败，尝试使用正则表达式方法
-            self._convert_xml_file_with_regex(xml_path)
-
-    def _convert_xml_file_with_regex(self, xml_path):
-        """使用正则表达式转换XML文件中的文本内容（备用方法）"""
+        采用精准正则匹配 <w:t> 标签内文本的方式，仅替换文字内容，
+        不对 XML 做解析-重写操作，从而完全保留原始 XML 结构（命名空间声明、
+        属性顺序、XML 声明等），杜绝因 ElementTree 重写导致命名空间前缀
+        被篡改（如 w: → ns0:）而使 Word 无法解析脚注/尾注的问题。
+        """
         try:
             # 检查是否已取消
             if self.is_cancelled_callback and self.is_cancelled_callback():
@@ -155,19 +121,19 @@ class DocxTraditionalSimplifiedConverter:
             if self.is_cancelled_callback and self.is_cancelled_callback():
                 return
 
-            # 使用正则表达式找到XML标签外的文本内容并转换
-            def convert_text_in_xml(match):
-                # 匹配文本内容但不匹配标签属性
-                text = match.group(1)
-                # 只在文本包含中文字符时转换
-                if any('\u4e00' <= char <= '\u9fff' for char in text):
-                    return '>' + self.convert_text(text) + '<'
-                else:
-                    return match.group(0)
+            # 精准匹配 <w:t>...</w:t> 标签（含带属性的情况如 <w:t xml:space="preserve">）
+            def convert_wt_text(match):
+                opening_tag = match.group(1)
+                text = match.group(2)
+                closing_tag = match.group(3)
 
-            # 匹配标签之间的文本内容
-            pattern = r'>([^<]+?)<'
-            converted_content = re.sub(pattern, convert_text_in_xml, content)
+                # 只在文本包含中文字符时转换，避免无意义的 OpenCC 调用
+                if text and any('\u4e00' <= c <= '\u9fff' for c in text):
+                    return opening_tag + self.convert_text(text) + closing_tag
+                return match.group(0)
+
+            pattern = r'(<w:t(?:\s[^>]*)?>)(.*?)(</w:t>)'
+            converted_content = re.sub(pattern, convert_wt_text, content)
 
             # 检查是否已取消
             if self.is_cancelled_callback and self.is_cancelled_callback():
@@ -177,7 +143,7 @@ class DocxTraditionalSimplifiedConverter:
                 f.write(converted_content)
 
         except Exception as e:
-            self.log(f"使用正则表达式转换XML文件 {xml_path} 时出错: {e}")
+            self.log(f"转换XML文件 {xml_path} 时出错: {e}")
 
     def convert_document(self, input_path, output_path=None):
         """
@@ -303,92 +269,135 @@ class DocxTraditionalSimplifiedConverter:
             self._convert_paragraph(paragraph)
 
     def _convert_paragraph(self, paragraph):
-        """转换单个段落，根据设置决定是否保留格式"""
+        """
+        转换单个段落，根据设置决定是否保留格式。
+        preserve_format=True 时，采用「整段转换 + 按位置切回」策略：
+          先拼接段落内所有 run 的文本，作为完整上下文交给 OpenCC 转换；
+          再根据字符位置索引将转换结果精准分配回各个 run，从而既保留
+          完整的上下文语义，又完全不触碰 run 的格式属性。
+        preserve_format=False 时，直接替换整段文本（会丢失 run 级格式）。
+        """
         if not paragraph.text.strip():
             return
 
-        # 如果设置了保留格式，逐个处理run
         if self.preserve_format:
-            for run in paragraph.runs:
-                # 检查是否已取消
-                if self.is_cancelled_callback and self.is_cancelled_callback():
-                    return
-
-                if run.text.strip():
-                    original_text = run.text
-                    converted_text = self.convert_text(original_text)
-
-                    # 保留原有格式的情况下更新文本
-                    self._preserve_run_format(run, converted_text)
+            if paragraph.runs:
+                self._convert_paragraph_with_context(paragraph)
+            else:
+                # 极少见的无 run 情况（如段落仅含超链接等非 run 子元素）
+                paragraph.text = self.convert_text(paragraph.text)
         else:
-            # 如果不保留格式，直接转换整个段落的文本
             if paragraph.text.strip():
-                original_text = paragraph.text
-                converted_text = self.convert_text(original_text)
                 # 检查是否已取消
                 if self.is_cancelled_callback and self.is_cancelled_callback():
                     return
 
-                paragraph.text = converted_text
+                paragraph.text = self.convert_text(paragraph.text)
 
-    def _preserve_run_format(self, run, new_text):
+    def _convert_paragraph_with_context(self, paragraph):
         """
-        保留run的所有原始格式，只更新文本内容
-        包括字体、大小、颜色、粗体、斜体、下划线等
+        整段转换 + 按位置切回：
+        1. 拼接段落内所有 run 文本，得到完整段落文本
+        2. 将完整文本交给 OpenCC 转换（拥有完整上下文）
+        3. 由于中文繁简转换几乎都是 1:1 字符映射，转换前后长度一致，
+           可按字符位置索引将转换结果精准分配回每个 run
+        4. 仅修改 run.text，完全不触碰 run 的格式属性（rPr）
         """
-        # 保存当前格式
-        original_bold = run.bold
-        original_italic = run.italic
-        original_underline = run.underline
-        original_color = run.font.color.rgb if run.font.color and run.font.color.rgb else None
+        runs = paragraph.runs
+        if not runs:
+            return
 
-        # 安全地获取高亮颜色
-        original_highlight = None
-        try:
-            original_highlight = run.font.highlight_color
-        except:
-            pass
+        # 检查是否已取消
+        if self.is_cancelled_callback and self.is_cancelled_callback():
+            return
 
-        # 保存字体信息
-        original_font_name = run.font.name
-        original_size = run.font.size
+        texts = [run.text or '' for run in runs]
+        full_text = ''.join(texts)
 
-        # 更新文本内容
-        run.text = new_text
+        # 如果整个段落没有中文，跳过转换
+        if not any('\u4e00' <= c <= '\u9fff' for c in full_text):
+            return
 
-        # 恢复格式
-        run.bold = original_bold
-        run.italic = original_italic
-        run.underline = original_underline
+        # 1) 计算每个 run 在完整文本中的起止位置（字符索引）
+        positions = []
+        offset = 0
+        for t in texts:
+            positions.append((offset, offset + len(t)))
+            offset += len(t)
 
-        if original_color:
-            run.font.color.rgb = original_color
+        # 2) 整段文本交给 OpenCC 转换（拥有完整上下文）
+        converted_full = self.convert_text(full_text)
 
-        if original_highlight:
-            try:
-                run.font.highlight_color = original_highlight
-            except:
-                pass
+        # 检查是否已取消
+        if self.is_cancelled_callback and self.is_cancelled_callback():
+            return
 
-        if original_font_name:
-            run.font.name = original_font_name
-            # 设置中文字体
-            try:
-                if hasattr(run, '_element') and hasattr(run._element, 'rPr'):
-                    rpr = run._element.rPr
-                    if rpr is not None:
-                        # 创建或获取字体设置
-                        fonts = rpr.find(qn('w:rFonts'))
-                        if fonts is None:
-                            fonts = OxmlElement('w:rFonts')
-                            rpr.append(fonts)
-                        fonts.set(qn('w:eastAsia'), original_font_name)
-            except Exception as e:
-                self.log(f"设置中文字体时出错: {e}")
+        # 3) 按位置切分写回各 run（格式完全不动）
+        if len(converted_full) == len(full_text):
+            # 正常情况：长度一致，直接按位置切割
+            for i, run in enumerate(runs):
+                start, end = positions[i]
+                # 关键：跳过空文本的 run，避免 clear_content() 销毁
+                # 脚注引用、制表符、图片等特殊 run 的 text 为空但包含重要子元素
+                if start == end:
+                    continue
+                run.text = converted_full[start:end]
+        else:
+            # 降级：长度不一致（极其罕见，如某些特殊字符映射）
+            # 使用 difflib 逐字符对齐来兜底
+            self._convert_paragraph_fallback(runs, texts, positions,
+                                             converted_full, full_text)
 
-        if original_size:
-            run.font.size = original_size
+    def _convert_paragraph_fallback(self, runs, texts, positions, converted_full, full_text):
+        """
+        降级方案：当转换前后文本长度不一致时，使用 difflib 构建原文字符到
+        转换后字符的映射表，按映射关系为每个 run 收集对应的转换后文本。
+        """
+        # 构建字符级别的差异对齐
+        sm = difflib.SequenceMatcher(None, list(full_text), list(converted_full))
+        char_map = {}  # original_index -> converted_index
 
+        for op, i1, i2, j1, j2 in sm.get_opcodes():
+            if op == 'equal':
+                # 等长相同：原位置直接映射到转换后位置
+                for k in range(i2 - i1):
+                    char_map[i1 + k] = j1 + k
+            elif op == 'replace':
+                # 替换操作：按最短长度对齐，多出的字符归到最后一个映射位置
+                min_len = min(i2 - i1, j2 - j1)
+                for k in range(min_len):
+                    char_map[i1 + k] = j1 + k
+                if (i2 - i1) > min_len:
+                    # 原文多出的字符，映射到转换后最后一个对应位置
+                    for k in range(min_len, i2 - i1):
+                        char_map[i1 + k] = j1 + min_len - 1
+                elif (j2 - j1) > min_len:
+                    # 转换后多出的字符，追加到最后一个原文对应位置
+                    for k in range(min_len, j2 - j1):
+                        char_map[i1 + min_len - 1] = j1 + k
+            elif op == 'delete':
+                # 原文有字符被删除：这些字符映射到前一个有效位置
+                for k in range(i1, i2):
+                    ref = i1 - 1 if i1 > 0 else 0
+                    char_map[k] = char_map.get(ref, j1 if j1 < len(converted_full) else 0)
+            elif op == 'insert':
+                # 转换后插入了新字符：分配给前一个原文位置
+                if i1 > 0 and (i1 - 1) in char_map:
+                    char_map[i1 - 1] = j2 - 1
+
+        # 根据映射表为每个 run 收集对应的转换后字符
+        for i, run in enumerate(runs):
+            start, end = positions[i]
+            # 关键：跳过空文本的 run，避免 clear_content() 销毁脚注引用等子元素
+            if start == end:
+                continue
+            converted_chars = []
+            for pos in range(start, end):
+                if pos in char_map:
+                    cpos = char_map[pos]
+                    if cpos < len(converted_full):
+                        converted_chars.append(converted_full[cpos])
+            run.text = ''.join(converted_chars)
     def _convert_tables(self, tables):
         """转换表格内容"""
         for table in tables:
