@@ -32,7 +32,7 @@ OpenCC转换的配置文件存于本仓库的“t2gov”文件夹下，使用者
 
 “transformer”文件夹下提供了一套模块化的 Python 转换程序，由 `main.py` 作为程序入口统一调度，内部为 `constants.py`（版本常量）、`updater.py`（在线更新检测）、`text_converter.py`（TXT/SRT/ASS/LRC 转换与编码检测）和 `doc_converter.py`（Word 文档转换）四个模块。如果使用者希望自行部署转换程序，可以按以下说明操作。
 
-在 Windows 系统上，使用者需部署好 Python 运行环境。然后打开终端（PowerShell），进入项目目录，执行以下命令安装并运行：
+在 Windows 系统上，使用者需部署好 Python 运行环境。然后打开终端（PowerShell），执行以下命令安装依赖并运行：
 
 ```bash
 git clone https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards.git
@@ -42,7 +42,7 @@ Copy-Item -Path "..\t2gov\*" -Destination "$(python -c "import opencc, os; print
 python main.py
 ```
 
-在 Linux 发行版和 Mac 下，可使用 “transformer-linux” 文件夹下的转换程序。该程序仅支持 docx 文档、txt 文件和字幕文件的繁体字形转换，暂不支持doc文档的转换。使用者需部署好 Python 运行环境，然后打开终端，执行以下命令安装并运行：
+在 Linux 发行版和 Mac 下，可使用 “transformer-linux” 文件夹下的转换程序。该程序仅支持 docx 文档、txt 文件和字幕文件的繁体字形转换，暂不支持doc文档的转换。使用者需部署好 Python 运行环境，然后打开终端，执行以下命令安装依赖并运行：
 
 ```bash
 git clone https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards.git
@@ -64,7 +64,7 @@ python3 main.py
 
 ## 使用本转换方案的项目
 
-* [opencc-wasm](https://github.com/frankslin/OpenCC) ([npm](https://www.npmjs.com/package/opencc-wasm)、[演示页面](https://opencc.js.org/))  维护者：[Frankslin](https://github.com/frankslin)
+* [opencc-wasm](https://github.com/frankslin/OpenCC) （[npm](https://www.npmjs.com/package/opencc-wasm)、[演示页面](https://opencc.js.org/)）  维护者：[FranksLin](https://github.com/frankslin)
 
 * [OpenCC File Converter（简繁通转换大师）](https://github.com/TerryTian-tech/OpenCC-DocxConverter)  维护者：[TerryTian-tech](https://github.com/TerryTian-tech)
 
