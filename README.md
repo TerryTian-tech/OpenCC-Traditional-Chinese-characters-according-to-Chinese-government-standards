@@ -64,8 +64,13 @@ python3 main.py
 
 ## 使用本转换方案的项目
 
-* [opencc-wasm](https://www.npmjs.com/package/opencc-wasm) ([website](https://opencc.js.org/))  维护者：[frankslin](https://github.com/frankslin)
+* [opencc-wasm](https://github.com/frankslin/OpenCC) ([npm](https://www.npmjs.com/package/opencc-wasm)、[演示页面](https://opencc.js.org/))  维护者：[Frankslin](https://github.com/frankslin)
+
 * [OpenCC File Converter（简繁通转换大师）](https://github.com/TerryTian-tech/OpenCC-DocxConverter)  维护者：[TerryTian-tech](https://github.com/TerryTian-tech)
+
+* [regexp-replace-lists-for-TextPro](https://github.com/Fusyong/regexp-replace-lists-for-TextPro)  维护者：[Huang Fusyong](https://github.com/Fusyong)
+
+* [telegram-zh-Hant-CN](https://github.com/soizo/telegram-zh-Hant-CN)  维护者：[SoizoKtantas](https://github.com/soizo)
 
 ## 许可协议
 
