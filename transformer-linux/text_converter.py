@@ -5,11 +5,22 @@ import chardet
 from opencc import OpenCC
 
 
-def detect_encoding(file_path, log_callback=None):
-    """检测文件编码，特别处理中文ANSI编码"""
+def detect_encoding(file_path, log_callback=None, force_encoding=None):
+    """检测文件编码，特别处理中文ANSI编码
+
+    :param file_path: 文件路径
+    :param log_callback: 日志回调函数
+    :param force_encoding: 强制指定的编码（如 'big5'）。如果为 None 则自动检测。
+    :return: 检测到的编码名称
+    """
     def log(msg):
         if log_callback:
             log_callback(msg)
+
+    # 如果用户强制指定了编码，直接返回
+    if force_encoding:
+        log(f"用户强制指定编码: {force_encoding}")
+        return force_encoding
 
     log(f"检测文件编码: {file_path}")
     with open(file_path, 'rb') as f:
@@ -28,8 +39,6 @@ def detect_encoding(file_path, log_callback=None):
         try:
             # 尝试用GB18030解码整个文件
             decoded = raw_data.decode('gb18030', errors='strict')
-            # 检查是否包含GB18030特有的字符范围
-            # GB18030扩展了GB2312，支持更多汉字和符号
             if any(ord(char) > 0x9FFF for char in decoded):  # 检查是否包含扩展汉字
                 log("检测到GB18030扩展字符，使用GB18030编码")
                 return 'gb18030'
@@ -47,9 +56,8 @@ def detect_encoding(file_path, log_callback=None):
         chinese_encodings = ['gb18030', 'gbk', 'gb2312', 'big5']
         for enc in chinese_encodings:
             try:
-                # 尝试解码前1000个字节
-                test_data = raw_data[:1000]
-                decoded = test_data.decode(enc, errors='strict')
+                # 修复：改为全文检测，而不是只检测前1000字节
+                decoded = raw_data.decode(enc, errors='strict')
                 # 如果包含中文字符，认为可能是正确的编码
                 if any('\u4e00' <= char <= '\u9fff' for char in decoded):
                     log(f"检测到中文字符，使用编码: {enc}")
@@ -123,7 +131,8 @@ def safe_read_file(file_path, encoding, log_callback=None):
                 return ""
 
 
-def convert_srt_file(input_path, output_folder, conversion_type, log_callback=None, is_cancelled_callback=None):
+def convert_srt_file(input_path, output_folder, conversion_type, log_callback=None, is_cancelled_callback=None,
+                      force_encoding=None):
     """
     将SRT字幕文件转换为繁体/简体
     SRT格式示例：
@@ -167,7 +176,7 @@ def convert_srt_file(input_path, output_folder, conversion_type, log_callback=No
             return False
 
         # 检测文件编码
-        encoding = detect_encoding(input_path, log_callback)
+        encoding = detect_encoding(input_path, log_callback, force_encoding)
         log(f"最终使用的编码: {encoding}")
 
         # 检查是否已取消
@@ -289,7 +298,8 @@ def _convert_srt_text_with_tags(cc, text):
     return ''.join(result)
 
 
-def convert_ass_file(input_path, output_folder, conversion_type, log_callback=None, is_cancelled_callback=None):
+def convert_ass_file(input_path, output_folder, conversion_type, log_callback=None, is_cancelled_callback=None,
+                      force_encoding=None):
     """
     将ASS/SSA字幕文件转换为繁体/简体
     ASS/SSA格式包含多个部分：
@@ -332,7 +342,7 @@ def convert_ass_file(input_path, output_folder, conversion_type, log_callback=No
             return False
 
         # 检测文件编码
-        encoding = detect_encoding(input_path, log_callback)
+        encoding = detect_encoding(input_path, log_callback, force_encoding)
         log(f"最终使用的编码: {encoding}")
 
         # 检查是否已取消
@@ -443,7 +453,8 @@ def _convert_ass_dialogue_line(cc, line):
     return prefix + ','.join(parts)
 
 
-def convert_lrc_file(input_path, output_folder, conversion_type, log_callback=None, is_cancelled_callback=None):
+def convert_lrc_file(input_path, output_folder, conversion_type, log_callback=None, is_cancelled_callback=None,
+                      force_encoding=None):
     """
     将LRC歌词文件转换为繁体/简体
     LRC格式示例：
@@ -490,7 +501,7 @@ def convert_lrc_file(input_path, output_folder, conversion_type, log_callback=No
             return False
 
         # 检测文件编码
-        encoding = detect_encoding(input_path, log_callback)
+        encoding = detect_encoding(input_path, log_callback, force_encoding)
         log(f"最终使用的编码: {encoding}")
 
         # 检查是否已取消
@@ -616,7 +627,8 @@ def _convert_lrc_lyric_text(cc, text):
     return ''.join(result)
 
 
-def convert_txt_file(input_path, output_folder, conversion_type, log_callback=None, is_cancelled_callback=None):
+def convert_txt_file(input_path, output_folder, conversion_type, log_callback=None, is_cancelled_callback=None,
+                      force_encoding=None):
     """
     将txt文件转换为繁体/简体
     :param input_path: 输入文件路径
@@ -652,7 +664,7 @@ def convert_txt_file(input_path, output_folder, conversion_type, log_callback=No
             return False
 
         # 检测文件编码
-        encoding = detect_encoding(input_path, log_callback)
+        encoding = detect_encoding(input_path, log_callback, force_encoding)
         log(f"最终使用的编码: {encoding}")
 
         # 检查是否已取消
