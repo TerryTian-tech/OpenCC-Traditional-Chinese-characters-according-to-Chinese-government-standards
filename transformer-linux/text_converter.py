@@ -59,10 +59,46 @@ def detect_encoding(file_path, log_callback=None, force_encoding=None):
                 # 修复：改为全文检测，而不是只检测前1000字节
                 decoded = raw_data.decode(enc, errors='strict')
                 # 如果包含中文字符，认为可能是正确的编码
-                if any('\u4e00' <= char <= '\u9fff' for char in decoded):
+                has_chinese = any(
+                    '\u4e00' <= char <= '\u9fff'      # CJK 基本区汉字
+                    or '\u3400' <= char <= '\u4dbf'    # CJK 扩展A区
+                    or '\u3000' <= char <= '\u303f'    # CJK 标点符号
+                    or '\uff00' <= char <= '\uffef'    # 全角字符
+                    for char in decoded
+                )
+                if has_chinese:
                     log(f"检测到中文字符，使用编码: {enc}")
                     return enc
             except UnicodeDecodeError:
+                continue
+
+        # 如果严格解码没有匹配到中文字符，使用宽松模式再试一次
+        # 某些文件可能混有少量非标准字节（如BOM头、控制字符），
+        # strict 模式下会抛异常导致整个编码被跳过
+        for enc in ['gb18030', 'gbk']:
+            try:
+                decoded = raw_data.decode(enc, errors='replace')
+                has_chinese = any(
+                    '\u4e00' <= char <= '\u9fff'
+                    or '\u3400' <= char <= '\u4dbf'
+                    or '\u3000' <= char <= '\u303f'
+                    or '\uff00' <= char <= '\uffef'
+                    for char in decoded
+                )
+                if has_chinese:
+                    # 验证：检查是否有被替换的无效字符
+                    # 如果文件真的是 GB18030，replace 模式应该很少产生替换
+                    replaced_count = decoded.count('\ufffd')
+                    if replaced_count == 0:
+                        log(f"宽松模式下检测到中文且无替换字符，使用编码: {enc}")
+                        return enc
+                    else:
+                        # 替换字符占比很低时（<0.5%），仍然可能是正确的编码
+                        ratio = replaced_count / len(decoded) if decoded else 1
+                        if ratio < 0.005:
+                            log(f"宽松模式下检测到中文（替换率{ratio:.4%}极低），使用编码: {enc}")
+                            return enc
+            except Exception:
                 continue
 
     # 如果检测到UTF-8但置信度不高，尝试GB18030
@@ -86,6 +122,13 @@ def detect_encoding(file_path, log_callback=None, force_encoding=None):
         log(f"将{encoding}升级为GB18030以确保更好的兼容性")
         return 'gb18030'
 
+    # 最终回退：如果chardet检测到的是非中文编码且置信度不高，
+    # 强制使用gb18030作为最终回退（中文文件最常见的ANSI编码）
+    if encoding.lower() not in ['utf-8', 'utf-8-sig', 'gb18030', 'gbk', 'gb2312', 'big5']:
+        if confidence < 0.5:
+            log(f"chardet检测到非中文编码'{encoding}'（置信度{confidence:.4%}），回退到GB18030")
+            return 'gb18030'
+        
     return encoding
 
 
