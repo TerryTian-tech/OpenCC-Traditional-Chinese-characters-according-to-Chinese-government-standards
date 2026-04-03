@@ -204,7 +204,7 @@ def convert_srt_file(input_path, output_folder, conversion_type, log_callback=No
             line = lines[i]
 
             # 检查是否是序号行（纯数字）
-            if line.strip().isdigit():
+            if line.strip().isdigit() and i+1 < len(lines) and '-->' in lines[i+1]:
                 converted_lines.append(line)  # 序号行不转换
                 i += 1
 
