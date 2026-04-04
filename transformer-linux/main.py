@@ -403,7 +403,7 @@ class ModernUI(QMainWindow):
 
         # 分词说明
         segment_desc = QLabel(
-            "分词功能可以在转换前对文本进行分词处理，以提高转换准确性。\n"
+            "分词功能可以在转换前对文本进行分词预处理，以提高转换准确性。\n"
             "注意：分词仅对TXT文件有效，其他类型文件暂不支持分词功能。"
         )
         segment_desc.setWordWrap(True)
@@ -418,11 +418,11 @@ class ModernUI(QMainWindow):
         self.no_segment_cb.stateChanged.connect(lambda state: self.on_segment_mode_changed("none", state))
 
         # 结巴分词（现代汉语）选项
-        self.jieba_modern_cb = QCheckBox("使用结巴分词（现代汉语）")
+        self.jieba_modern_cb = QCheckBox("转换前使用结巴分词进行文本分词预处理")
         self.jieba_modern_cb.stateChanged.connect(lambda state: self.on_segment_mode_changed("jieba_modern", state))
 
         # 结巴分词（古汉语）选项
-        self.jieba_ancient_cb = QCheckBox("使用结巴分词（古汉语）- 实验性功能，谨慎启用")
+        self.jieba_ancient_cb = QCheckBox("转换前使用结巴分词对古汉语文本进行分词预处理（experimental）")
         self.jieba_ancient_cb.stateChanged.connect(lambda state: self.on_segment_mode_changed("jieba_ancient", state))
 
         segment_options_layout.addWidget(self.no_segment_cb)
