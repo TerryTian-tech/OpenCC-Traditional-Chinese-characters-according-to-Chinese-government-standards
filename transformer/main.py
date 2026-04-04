@@ -491,12 +491,17 @@ class ModernUI(QMainWindow):
         self.no_segment_cb.setChecked(True)
         self.no_segment_cb.stateChanged.connect(lambda state: self.on_segment_mode_changed("none", state))
 
-        # 结巴分词选项
-        self.jieba_segment_cb = QCheckBox("使用结巴分词")
-        self.jieba_segment_cb.stateChanged.connect(lambda state: self.on_segment_mode_changed("jieba", state))
+        # 结巴分词（现代汉语）选项
+        self.jieba_modern_cb = QCheckBox("使用结巴分词（现代汉语）")
+        self.jieba_modern_cb.stateChanged.connect(lambda state: self.on_segment_mode_changed("jieba_modern", state))
+
+        # 结巴分词（古汉语）选项
+        self.jieba_ancient_cb = QCheckBox("使用结巴分词（古汉语）")
+        self.jieba_ancient_cb.stateChanged.connect(lambda state: self.on_segment_mode_changed("jieba_ancient", state))
 
         segment_options_layout.addWidget(self.no_segment_cb)
-        segment_options_layout.addWidget(self.jieba_segment_cb)
+        segment_options_layout.addWidget(self.jieba_modern_cb)
+        segment_options_layout.addWidget(self.jieba_ancient_cb)
         segment_layout.addLayout(segment_options_layout)
 
         # 从设置中恢复分词选择
@@ -511,10 +516,13 @@ class ModernUI(QMainWindow):
     def _apply_segment_mode(self, mode):
         """应用分词模式设置"""
         self.no_segment_cb.setChecked(False)
-        self.jieba_segment_cb.setChecked(False)
+        self.jieba_modern_cb.setChecked(False)
+        self.jieba_ancient_cb.setChecked(False)
 
-        if mode == "jieba":
-            self.jieba_segment_cb.setChecked(True)
+        if mode == "jieba_modern":
+            self.jieba_modern_cb.setChecked(True)
+        elif mode == "jieba_ancient":
+            self.jieba_ancient_cb.setChecked(True)
         else:
             self.no_segment_cb.setChecked(True)
 
@@ -525,13 +533,23 @@ class ModernUI(QMainWindow):
 
         # 互斥：勾选一个时取消其他
         if mode == "none":
-            self.jieba_segment_cb.setChecked(False)
-        elif mode == "jieba":
+            self.jieba_modern_cb.setChecked(False)
+            self.jieba_ancient_cb.setChecked(False)
+        elif mode == "jieba_modern":
             self.no_segment_cb.setChecked(False)
+            self.jieba_ancient_cb.setChecked(False)
+        elif mode == "jieba_ancient":
+            self.no_segment_cb.setChecked(False)
+            self.jieba_modern_cb.setChecked(False)
 
         # 保存设置
         self.settings.setValue("segment_mode", mode)
-        self.statusBar().showMessage(f"分词设置已更改为: {'结巴分词' if mode == 'jieba' else '不分词'}")
+        mode_display = {
+            "none": "不分词",
+            "jieba_modern": "结巴分词（现代汉语）",
+            "jieba_ancient": "结巴分词（古汉语）"
+        }
+        self.statusBar().showMessage(f"分词设置已更改为: {mode_display.get(mode, '不分词')}")
 
     def on_encoding_changed(self, index):
         """编码设置更改事件处理"""
@@ -877,7 +895,12 @@ class ModernUI(QMainWindow):
         # 保存编码设置
         self.settings.setValue("encoding_index", self.encoding_combo.currentIndex())
         # 保存分词设置
-        segment_mode = 'jieba' if self.jieba_segment_cb.isChecked() else 'none'
+        if self.jieba_modern_cb.isChecked():
+            segment_mode = 'jieba_modern'
+        elif self.jieba_ancient_cb.isChecked():
+            segment_mode = 'jieba_ancient'
+        else:
+            segment_mode = 'none'
         self.settings.setValue("segment_mode", segment_mode)
 
     def create_conversion_tab(self):
@@ -1147,10 +1170,20 @@ class ModernUI(QMainWindow):
         force_encoding = self.encoding_combo.currentData()
 
         # 获取分词模式
-        segment_mode = 'jieba' if self.jieba_segment_cb.isChecked() else None
+        if self.jieba_modern_cb.isChecked():
+            segment_mode = 'jieba_modern'
+        elif self.jieba_ancient_cb.isChecked():
+            segment_mode = 'jieba_ancient'
+        else:
+            segment_mode = None
 
         # 在日志中显示当前设置
-        self.append_log(f"转换设置：保留格式={preserve_format}，转换脚注={convert_footnotes}，强制编码={force_encoding or '自动'}，分词模式={segment_mode or '不分词'}")
+        segment_mode_display = {
+            None: '不分词',
+            'jieba_modern': '结巴分词（现代汉语）',
+            'jieba_ancient': '结巴分词（古汉语）'
+        }
+        self.append_log(f"转换设置：保留格式={preserve_format}，转换脚注={convert_footnotes}，强制编码={force_encoding or '自动'}，分词模式={segment_mode_display.get(segment_mode, '不分词')}")
 
         # 启动转换线程
         self.start_button.setEnabled(False)

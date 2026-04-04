@@ -671,16 +671,60 @@ def _convert_lrc_lyric_text(cc, text):
     return ''.join(result)
 
 
-def _segment_with_jieba(text, log_callback=None):
+# 全局变量记录当前使用的词典路径
+_current_jieba_dict = None
+
+
+def _init_jieba_with_dict(dict_path, log_callback=None):
+    """
+    使用指定词典初始化结巴分词器
+    注意：jieba.set_dictionary() 必须在 initialize() 之前调用
+
+    :param dict_path: 主词典路径
+    :param log_callback: 日志回调函数
+    """
+    global _current_jieba_dict
+
+    # 如果词典没有变化且已经初始化，直接返回
+    if _current_jieba_dict == dict_path and jieba.dt.initialized:
+        return
+
+    # 如果已经初始化过，需要重置才能更换词典
+    if jieba.dt.initialized:
+        # 重置 jieba 以允许更换词典
+        jieba.dt.initialized = False
+        jieba.dt.tmp_dir = None
+        jieba.dt.cache_file = None
+
+    # 设置主词典
+    if dict_path and os.path.exists(dict_path):
+        jieba.set_dictionary(dict_path)
+        if log_callback:
+            log_callback(f"已设置主词典: {dict_path}")
+    else:
+        # 使用默认词典
+        if log_callback:
+            log_callback("使用结巴默认主词典")
+
+    # 初始化
+    jieba.initialize()
+    _current_jieba_dict = dict_path
+
+
+def _segment_with_jieba(text, dict_path=None, log_callback=None):
     """
     使用结巴分词器对文本进行分词
     结巴分词器适合处理现代汉语，使用 '\x1e' (Record Separator) 作为分词标记
 
     :param text: 待分词的文本
+    :param dict_path: 自定义词典路径，如果为None则使用默认词典
     :param log_callback: 日志回调函数
     :return: 分词后的文本（词之间用 '\x1e' 分隔）
     """
     try:
+        # 使用指定词典初始化结巴（会自动处理词典切换）
+        _init_jieba_with_dict(dict_path, log_callback)
+
         # 使用结巴分词，添加分隔符 \x1e (RS, Record Separator)
         # \x1e 是 ASCII 控制字符，几乎不可能出现在正常文本中
         tokens = jieba.cut(text, cut_all=False)
@@ -689,6 +733,29 @@ def _segment_with_jieba(text, log_callback=None):
         if log_callback:
             log_callback(f"结巴分词失败: {e}，使用原文")
         return text
+
+
+def get_jieba_dict_path(dict_name, conversion_type=None):
+    """
+    获取结巴分词词典文件路径
+
+    :param dict_name: 词典名称，'modern' 或 'ancient'
+    :param conversion_type: 转换类型，用于判断使用哪个词典
+    :return: 词典文件的完整路径
+    """
+    jieba_dir = os.path.dirname(jieba.__file__)
+
+    if dict_name == 'ancient':
+        # 古汉语词典选择逻辑：
+        # - 简转规繁任务（s2t）使用 dict_ancient_chinese.txt（简体词典）
+        # - 其他任务使用 dict_ancient_chinese_traditional.txt（繁体词典）
+        if conversion_type == 's2t':
+            return os.path.join(jieba_dir, 'dict_ancient_chinese.txt')
+        else:
+            return os.path.join(jieba_dir, 'dict_ancient_chinese_traditional.txt')
+    else:
+        # 默认使用现代汉语词典
+        return os.path.join(jieba_dir, 'dict.txt')
 
 
 def _remove_segment_marks(text):
@@ -713,7 +780,7 @@ def convert_txt_file(input_path, output_folder, conversion_type, log_callback=No
     :param log_callback: 日志回调函数
     :param is_cancelled_callback: 取消检查回调函数
     :param force_encoding: 强制指定的编码
-    :param segment_mode: 分词模式，可选 'jieba'（结巴）或 None（不分词）
+    :param segment_mode: 分词模式，可选 'jieba_modern'（结巴-现代汉语）、'jieba_ancient'（结巴-古汉语）或 None（不分词）
     :return: 转换后的文件路径或False
     """
     def log(msg):
@@ -758,9 +825,15 @@ def convert_txt_file(input_path, output_folder, conversion_type, log_callback=No
 
         # 分词处理（如果需要）
         segmented_content = content
-        if segment_mode == 'jieba':
-            log("使用结巴分词器进行分词...")
-            segmented_content = _segment_with_jieba(content, log_callback)
+        dict_path = None
+        if segment_mode == 'jieba_modern':
+            log("使用结巴分词器（现代汉语）进行分词...")
+            dict_path = get_jieba_dict_path('modern', conversion_type)
+            segmented_content = _segment_with_jieba(content, dict_path, log_callback)
+        elif segment_mode == 'jieba_ancient':
+            log("使用结巴分词器（古汉语）进行分词...")
+            dict_path = get_jieba_dict_path('ancient', conversion_type)
+            segmented_content = _segment_with_jieba(content, dict_path, log_callback)
 
         # 检查是否已取消
         if is_cancelled_callback and is_cancelled_callback():
@@ -774,7 +847,7 @@ def convert_txt_file(input_path, output_folder, conversion_type, log_callback=No
             return False
 
         # 移除分词标记，恢复原始格式
-        if segment_mode == 'jieba':
+        if segment_mode in ('jieba_modern', 'jieba_ancient'):
             log("移除分词标记，恢复原始格式...")
             converted_content = _remove_segment_marks(converted_content)
 
