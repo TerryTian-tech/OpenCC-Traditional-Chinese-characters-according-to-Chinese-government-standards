@@ -3,6 +3,7 @@ import re
 import chardet
 
 from opencc import OpenCC
+import jieba
 
 
 def detect_encoding(file_path, log_callback=None, force_encoding=None):
@@ -670,15 +671,48 @@ def _convert_lrc_lyric_text(cc, text):
     return ''.join(result)
 
 
+def _segment_with_jieba(text, log_callback=None):
+    """
+    使用结巴分词器对文本进行分词
+    结巴分词器适合处理现代汉语，使用 '|' 作为分词标记
+
+    :param text: 待分词的文本
+    :param log_callback: 日志回调函数
+    :return: 分词后的文本（词之间用 '|' 分隔）
+    """
+    try:
+        # 使用结巴分词，添加分隔符
+        tokens = jieba.cut(text, cut_all=False)
+        return '|'.join(tokens)
+    except Exception as e:
+        if log_callback:
+            log_callback(f"结巴分词失败: {e}，使用原文")
+        return text
+
+
+def _remove_segment_marks(text):
+    """
+    移除分词标记，恢复原始文本格式
+
+    :param text: 包含分词标记的文本
+    :return: 移除分词标记后的文本
+    """
+    # 移除 '|' 分词标记
+    return text.replace('|', '')
+
+
 def convert_txt_file(input_path, output_folder, conversion_type, log_callback=None, is_cancelled_callback=None,
-                      force_encoding=None):
+                      force_encoding=None, segment_mode=None):
     """
     将txt文件转换为繁体/简体
+
     :param input_path: 输入文件路径
     :param output_folder: 输出文件夹路径
     :param conversion_type: 转换类型
     :param log_callback: 日志回调函数
     :param is_cancelled_callback: 取消检查回调函数
+    :param force_encoding: 强制指定的编码
+    :param segment_mode: 分词模式，可选 'jieba'（结巴）或 None（不分词）
     :return: 转换后的文件路径或False
     """
     def log(msg):
@@ -721,8 +755,27 @@ def convert_txt_file(input_path, output_folder, conversion_type, log_callback=No
         if is_cancelled_callback and is_cancelled_callback():
             return False
 
+        # 分词处理（如果需要）
+        segmented_content = content
+        if segment_mode == 'jieba':
+            log("使用结巴分词器进行分词...")
+            segmented_content = _segment_with_jieba(content, log_callback)
+
+        # 检查是否已取消
+        if is_cancelled_callback and is_cancelled_callback():
+            return False
+
         # 繁简转换
-        converted_content = cc.convert(content)
+        converted_content = cc.convert(segmented_content)
+
+        # 检查是否已取消
+        if is_cancelled_callback and is_cancelled_callback():
+            return False
+
+        # 移除分词标记，恢复原始格式
+        if segment_mode == 'jieba':
+            log("移除分词标记，恢复原始格式...")
+            converted_content = _remove_segment_marks(converted_content)
 
         # 检查是否已取消
         if is_cancelled_callback and is_cancelled_callback():
