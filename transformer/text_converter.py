@@ -674,16 +674,17 @@ def _convert_lrc_lyric_text(cc, text):
 def _segment_with_jieba(text, log_callback=None):
     """
     使用结巴分词器对文本进行分词
-    结巴分词器适合处理现代汉语，使用 '|' 作为分词标记
+    结巴分词器适合处理现代汉语，使用 '\x1e' (Record Separator) 作为分词标记
 
     :param text: 待分词的文本
     :param log_callback: 日志回调函数
-    :return: 分词后的文本（词之间用 '|' 分隔）
+    :return: 分词后的文本（词之间用 '\x1e' 分隔）
     """
     try:
-        # 使用结巴分词，添加分隔符
+        # 使用结巴分词，添加分隔符 \x1e (RS, Record Separator)
+        # \x1e 是 ASCII 控制字符，几乎不可能出现在正常文本中
         tokens = jieba.cut(text, cut_all=False)
-        return '|'.join(tokens)
+        return '\x1e'.join(tokens)
     except Exception as e:
         if log_callback:
             log_callback(f"结巴分词失败: {e}，使用原文")
@@ -697,8 +698,8 @@ def _remove_segment_marks(text):
     :param text: 包含分词标记的文本
     :return: 移除分词标记后的文本
     """
-    # 移除 '|' 分词标记
-    return text.replace('|', '')
+    # 移除 '\x1e' (RS, Record Separator) 分词标记
+    return text.replace('\x1e', '')
 
 
 def convert_txt_file(input_path, output_folder, conversion_type, log_callback=None, is_cancelled_callback=None,
