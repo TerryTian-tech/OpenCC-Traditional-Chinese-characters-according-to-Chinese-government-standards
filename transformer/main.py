@@ -24,7 +24,7 @@ class ConversionWorker(QThread):
     log_message = Signal(str)  # 日志消息信号
 
     def __init__(self, input_path, output_folder, conversion_type='t2gov', preserve_format=True,
-                 convert_footnotes=True, force_encoding=None):
+                 convert_footnotes=True, force_encoding=None, segment_mode=None):
         super().__init__()
         self.input_path = input_path
         self.output_folder = output_folder
@@ -32,6 +32,7 @@ class ConversionWorker(QThread):
         self.preserve_format = preserve_format
         self.convert_footnotes = convert_footnotes
         self.force_encoding = force_encoding
+        self.segment_mode = segment_mode
         self._is_cancelled = False
 
     def run(self):
@@ -130,7 +131,8 @@ class ConversionWorker(QThread):
                     self.input_path, self.output_folder, self.conversion_type,
                     lambda msg: self.log_message.emit(msg),
                     lambda: self._is_cancelled,
-                    self.force_encoding
+                    self.force_encoding,
+                    self.segment_mode
                 )
                 if result:
                     self.progress_updated.emit(100, "转换完成!")
@@ -268,7 +270,8 @@ class ConversionWorker(QThread):
                         file_path, self.output_folder, self.conversion_type,
                         lambda msg: self.log_message.emit(msg),
                         lambda: self._is_cancelled,
-                        self.force_encoding
+                        self.force_encoding,
+                        self.segment_mode
                     ):
                         success_count += 1
 
@@ -466,8 +469,69 @@ class ModernUI(QMainWindow):
 
         layout.addWidget(encoding_group)
 
+        # 分词设置区域
+        segment_group = QGroupBox("分词设置")
+        segment_layout = QVBoxLayout(segment_group)
+        segment_layout.setSpacing(15)
+        segment_layout.setContentsMargins(15, 20, 15, 15)
+
+        # 分词说明
+        segment_desc = QLabel(
+            "分词功能可以在转换前对文本进行分词处理，以提高转换准确性。\n"
+            "注意：分词仅对TXT文件有效，其他类型文件暂不支持分词功能。"
+        )
+        segment_desc.setWordWrap(True)
+        segment_layout.addWidget(segment_desc)
+
+        # 分词选项
+        segment_options_layout = QVBoxLayout()
+
+        # 不分词选项
+        self.no_segment_cb = QCheckBox("不分词（默认）")
+        self.no_segment_cb.setChecked(True)
+        self.no_segment_cb.stateChanged.connect(lambda state: self.on_segment_mode_changed("none", state))
+
+        # 结巴分词选项
+        self.jieba_segment_cb = QCheckBox("使用结巴分词")
+        self.jieba_segment_cb.stateChanged.connect(lambda state: self.on_segment_mode_changed("jieba", state))
+
+        segment_options_layout.addWidget(self.no_segment_cb)
+        segment_options_layout.addWidget(self.jieba_segment_cb)
+        segment_layout.addLayout(segment_options_layout)
+
+        # 从设置中恢复分词选择
+        saved_segment_mode = self.settings.value("segment_mode", "none")
+        self._apply_segment_mode(saved_segment_mode)
+
+        layout.addWidget(segment_group)
+
         layout.addStretch()
         return tab
+
+    def _apply_segment_mode(self, mode):
+        """应用分词模式设置"""
+        self.no_segment_cb.setChecked(False)
+        self.jieba_segment_cb.setChecked(False)
+
+        if mode == "jieba":
+            self.jieba_segment_cb.setChecked(True)
+        else:
+            self.no_segment_cb.setChecked(True)
+
+    def on_segment_mode_changed(self, mode, state):
+        """分词模式更改事件处理（互斥逻辑）"""
+        if state != Qt.CheckState.Checked.value:
+            return
+
+        # 互斥：勾选一个时取消其他
+        if mode == "none":
+            self.jieba_segment_cb.setChecked(False)
+        elif mode == "jieba":
+            self.no_segment_cb.setChecked(False)
+
+        # 保存设置
+        self.settings.setValue("segment_mode", mode)
+        self.statusBar().showMessage(f"分词设置已更改为: {'结巴分词' if mode == 'jieba' else '不分词'}")
 
     def on_encoding_changed(self, index):
         """编码设置更改事件处理"""
@@ -812,6 +876,9 @@ class ModernUI(QMainWindow):
         self.settings.setValue("theme", self.current_theme)
         # 保存编码设置
         self.settings.setValue("encoding_index", self.encoding_combo.currentIndex())
+        # 保存分词设置
+        segment_mode = 'jieba' if self.jieba_segment_cb.isChecked() else 'none'
+        self.settings.setValue("segment_mode", segment_mode)
 
     def create_conversion_tab(self):
         """创建转换选项卡"""
@@ -1079,8 +1146,11 @@ class ModernUI(QMainWindow):
         # 获取强制编码选项
         force_encoding = self.encoding_combo.currentData()
 
+        # 获取分词模式
+        segment_mode = 'jieba' if self.jieba_segment_cb.isChecked() else None
+
         # 在日志中显示当前设置
-        self.append_log(f"转换设置：保留格式={preserve_format}，转换脚注={convert_footnotes}，强制编码={force_encoding or '自动'}")
+        self.append_log(f"转换设置：保留格式={preserve_format}，转换脚注={convert_footnotes}，强制编码={force_encoding or '自动'}，分词模式={segment_mode or '不分词'}")
 
         # 启动转换线程
         self.start_button.setEnabled(False)
@@ -1094,7 +1164,8 @@ class ModernUI(QMainWindow):
             conversion_type,
             preserve_format,  # 使用复选框的实际值
             convert_footnotes,  # 使用复选框的实际值
-            force_encoding
+            force_encoding,
+            segment_mode
         )
         self.worker.progress_updated.connect(self.update_progress)
         self.worker.conversion_finished.connect(self.conversion_finished)
