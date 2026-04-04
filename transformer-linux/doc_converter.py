@@ -275,7 +275,9 @@ class DocxTraditionalSimplifiedConverter:
           先拼接段落内所有 run 的文本，作为完整上下文交给 OpenCC 转换；
           再根据字符位置索引将转换结果精准分配回各个 run，从而既保留
           完整的上下文语义，又完全不触碰 run 的格式属性。
-        preserve_format=False 时，直接替换整段文本（会丢失 run 级格式）。
+        preserve_format=False 时，同样逐 run 处理以保护脚注引用等结构元素，
+          将全部文本集中到第一个有文字的 run 中（丢失 run 级格式），
+          跳过空文本 run 以避免 clear_content() 销毁脚注引用。
         """
         if not paragraph.text.strip():
             return
@@ -292,7 +294,68 @@ class DocxTraditionalSimplifiedConverter:
                 if self.is_cancelled_callback and self.is_cancelled_callback():
                     return
 
-                paragraph.text = self.convert_text(paragraph.text)
+                self._convert_paragraph_simple(paragraph)
+
+    def _convert_paragraph_simple(self, paragraph):
+        """
+        不保留格式的段落转换。
+
+        与 paragraph.text = ... 不同，此方法在 run 级别操作以保护脚注引用等结构元素：
+        - 将段落的完整文本交给 OpenCC 转换（保证上下文语义）
+        - 把全部转换后文本写入第一个有文字内容的 run
+        - 清空其余有文字的 run 的文本（不触碰空文本 run）
+        - 空文本 run（脚注引用 <w:footnoteReference>、制表符 <w:tab/>、
+          图片 <w:drawing/> 等）完全不被修改，结构元素得以保留
+
+        效果：run 级格式（粗体、斜体、字号等）丢失，但脚注/尾注引用完好。
+        """
+        runs = paragraph.runs
+        if not runs:
+            # 极少见的无 run 情况，回退到整段替换
+            paragraph.text = self.convert_text(paragraph.text)
+            return
+
+        # 检查是否已取消
+        if self.is_cancelled_callback and self.is_cancelled_callback():
+            return
+
+        # 拼接所有 run 文本
+        texts = [run.text or '' for run in runs]
+        full_text = ''.join(texts)
+
+        # 如果整个段落没有中文，跳过转换
+        if not any('\u4e00' <= c <= '\u9fff' for c in full_text):
+            return
+
+        # 整段文本交给 OpenCC 转换（保持上下文语义）
+        converted_full = self.convert_text(full_text)
+
+        # 检查是否已取消
+        if self.is_cancelled_callback and self.is_cancelled_callback():
+            return
+
+        # 如果转换前后文本相同，无需修改任何 run
+        if converted_full == full_text:
+            return
+
+        # 找到第一个有实际文本内容的 run
+        first_text_run_idx = None
+        for i, t in enumerate(texts):
+            if t.strip():
+                first_text_run_idx = i
+                break
+
+        if first_text_run_idx is None:
+            # 所有 run 的文本都为空（只有结构元素），无需修改
+            return
+
+        # 将全部转换后的文本集中到第一个有文字的 run（格式以该 run 为准，其余 run 格式丢失）
+        runs[first_text_run_idx].text = converted_full
+
+        # 清空其余有文字的 run；跳过空文本 run（保护脚注引用、图片等结构元素）
+        for i, run in enumerate(runs):
+            if i != first_text_run_idx and texts[i]:
+                run.text = ''
 
     def _convert_paragraph_with_context(self, paragraph):
         """

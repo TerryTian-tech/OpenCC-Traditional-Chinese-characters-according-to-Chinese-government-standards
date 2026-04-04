@@ -5,7 +5,7 @@ import tempfile
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QTextEdit, QFileDialog, QLabel, QProgressBar,
                              QMessageBox, QGroupBox, QComboBox, QCheckBox, QLineEdit,
-                             QStyleFactory, QTabWidget, QRadioButton)
+                             QStyleFactory, QTabWidget)
 from PySide6.QtCore import Qt, QThread, Signal, QSettings
 from PySide6.QtGui import QIcon, QColor, QPalette
 
@@ -78,7 +78,7 @@ class ConversionWorker(QThread):
             if file_ext == '.docx':
                 result = convert_docx_file(
                     self.input_path, self.output_folder, self.conversion_type,
-                    True,  # preserve_format (hardcoded True per original)
+                    self.preserve_format,
                     self.convert_footnotes,
                     lambda msg: self.log_message.emit(msg),
                     lambda: self._is_cancelled
@@ -178,7 +178,7 @@ class ConversionWorker(QThread):
                     try:
                         result = convert_docx_file(
                             file_path, self.output_folder, self.conversion_type,
-                            True,  # preserve_format (hardcoded True per original)
+                            self.preserve_format,
                             self.convert_footnotes,
                             lambda msg: self.log_message.emit(msg),
                             lambda: self._is_cancelled
@@ -325,26 +325,26 @@ class ModernUI(QMainWindow):
         # 主题选择按钮
         theme_button_layout = QHBoxLayout()
 
-        # 创建单选按钮
-        self.dark_theme_radio = QRadioButton("暗色主题")
-        self.light_theme_radio = QRadioButton("浅色主题")
+        # 创建复选框（互斥：勾选一个自动取消另一个）
+        self.dark_theme_cb = QCheckBox("暗色主题")
+        self.light_theme_cb = QCheckBox("浅色主题")
 
         # 根据保存的主题设置默认选中
         if self.current_theme == "dark":
-            self.dark_theme_radio.setChecked(True)
+            self.dark_theme_cb.setChecked(True)
         else:
-            self.light_theme_radio.setChecked(True)
+            self.light_theme_cb.setChecked(True)
 
-        # 将单选按钮添加到布局
-        theme_button_layout.addWidget(self.dark_theme_radio)
-        theme_button_layout.addWidget(self.light_theme_radio)
+        # 将复选框添加到布局
+        theme_button_layout.addWidget(self.dark_theme_cb)
+        theme_button_layout.addWidget(self.light_theme_cb)
         theme_button_layout.addStretch()
 
         theme_layout.addLayout(theme_button_layout)
 
-        # 连接信号
-        self.dark_theme_radio.toggled.connect(lambda: self.on_theme_changed("dark"))
-        self.light_theme_radio.toggled.connect(lambda: self.on_theme_changed("light"))
+        # 连接信号：勾选一个时自动取消另一个（互斥行为）
+        self.dark_theme_cb.stateChanged.connect(lambda state: self.on_theme_changed("dark", state))
+        self.light_theme_cb.stateChanged.connect(lambda state: self.on_theme_changed("light", state))
 
         layout.addWidget(theme_group)
 
@@ -401,11 +401,16 @@ class ModernUI(QMainWindow):
         encoding_name = self.encoding_combo.currentText()
         self.statusBar().showMessage(f"编码设置已更改为: {encoding_name}")
 
-    def on_theme_changed(self, theme):
-        """主题更改事件处理"""
-        if (theme == "dark" and self.dark_theme_radio.isChecked()) or \
-           (theme == "light" and self.light_theme_radio.isChecked()):
-            self.change_theme(theme)
+    def on_theme_changed(self, theme, state):
+        """主题更改事件处理（复选框互斥逻辑）"""
+        if state != Qt.CheckState.Checked.value:
+            return
+        # 互斥：勾选一个时取消另一个
+        if theme == "dark":
+            self.light_theme_cb.setChecked(False)
+        else:
+            self.dark_theme_cb.setChecked(False)
+        self.change_theme(theme)
 
     def apply_theme(self, theme):
         """应用指定主题"""
@@ -554,25 +559,7 @@ class ModernUI(QMainWindow):
             QTabBar::tab:hover:!selected {
                 background-color: #4a77a8;
             }
-            QRadioButton {
-                color: #aaaaaa;
-                padding: 8px;
-                font-size: 14px;
-            }
-            QRadioButton::indicator {
-                width: 18px;
-                height: 18px;
-            }
-            QRadioButton::indicator:checked {
-                background-color: #00bc8c;
-                border: 2px solid #555555;
-                border-radius: 9px;
-            }
-            QRadioButton::indicator:unchecked {
-                background-color: #3c3c3c;
-                border: 2px solid #555555;
-                border-radius: 9px;
-            }
+
             QPushButton#cancelButton {
                 background-color: #e74c3c;
                 font-weight: bold;
@@ -725,25 +712,7 @@ class ModernUI(QMainWindow):
             QTabBar::tab:hover:!selected {
                 background-color: #d0d0d0;
             }
-            QRadioButton {
-                color: #333333;
-                padding: 8px;
-                font-size: 14px;
-            }
-            QRadioButton::indicator {
-                width: 18px;
-                height: 18px;
-            }
-            QRadioButton::indicator:checked {
-                background-color: #4caf50;
-                border: 2px solid #cccccc;
-                border-radius: 9px;
-            }
-            QRadioButton::indicator:unchecked {
-                background-color: white;
-                border: 2px solid #cccccc;
-                border-radius: 9px;
-            }
+
             QPushButton#cancelButton {
                 background-color: #e74c3c;
                 font-weight: bold;
@@ -838,8 +807,8 @@ class ModernUI(QMainWindow):
         # 保留格式选项 - 设置为不可用
         self.preserve_format_cb = QCheckBox("尽量保留Word文档的原有格式")
         self.preserve_format_cb.setChecked(True)
-        self.preserve_format_cb.setEnabled(False)  # 设置为不可用
-        self.preserve_format_cb.setToolTip("此选项已固定启用，不可更改")
+        self.preserve_format_cb.setEnabled(True)  # 设置为可用
+        self.preserve_format_cb.setToolTip("是否保留Word文档的原有格式")
 
         # 转换脚注选项 - 设置为可用
         self.convert_footnotes_cb = QCheckBox("转换Word文档里的脚注和尾注")
@@ -1049,7 +1018,7 @@ class ModernUI(QMainWindow):
             input_path,
             output_path,
             conversion_type,
-            True,  # preserve_format 固定为True
+            preserve_format,  # 使用复选框的实际值
             convert_footnotes,  # 使用复选框的实际值
             force_encoding
         )
