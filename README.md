@@ -39,6 +39,7 @@ git clone https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-character
 cd OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/transformer
 pip install -r requirements.txt
 Copy-Item -Path "..\t2gov\*" -Destination "$(python -c "import opencc, os; print(os.path.join(os.path.dirname(opencc.__file__), 'clib', 'share', 'opencc'))")" -Recurse -Force
+Copy-Item -Path "..\jieba\*" -Destination "$(python -c 'import jieba, os; print(os.path.dirname(jieba.__file__))')" -Recurse -Force
 python main.py
 ```
 
@@ -49,8 +50,11 @@ git clone https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-character
 cd OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/transformer-linux
 pip install -r requirements.txt
 cp -rf ../t2gov/* "$(python3 -c "import opencc, os; print(os.path.join(os.path.dirname(opencc.__file__), 'clib', 'share', 'opencc'))")"
+cp -rf ../jieba/* "$(python3 -c "import jieba, os; print(os.path.dirname(jieba.__file__))")"
 python3 main.py
 ```
+
+结巴分词支持词典位于jieba目录下，其中默认词典dict.txt来自[结巴分词仓库](https://github.com/fxsjy/jieba)，自定义词典使用了[gumblex](https://github.com/gumblex)制作的[jiebazhc](https://github.com/The-Orizon/nlputils)和来自[hanzi-words](https://github.com/zispace/hanzi-words)的古汉语词汇数据。jieba目录下的所有文件中属于开源贡献者制作的部分均遵循MIT License。
 
 > [!NOTE]
 >在Windows系统上，部分情况下转换doc文档时会出现错误提示“AttributeError: module ‘win32com.gen_py.00020905-0000-4B30-A977-D214852036FFx0x3x0’ has no attribute ‘CLSIDToClassMap’”。如出现该错误，可尝试删除C:\Users\administrator（注：此处为你的计算机用户名，默认名称为administrator或admin，如有微软账户一般则为微软账户名）\AppData\Local\Temp\gen_py\3.13(注：此处为你安装的Python版本号)下的缓存文件夹00020905-0000-4B30-A977-D214852036FFx0x3x0，再重新运行转换器。如果错误提示代号并非00020905-0000-4B30-A977-D214852036FFx0x3x0，亦可照此操作以排除故障。
