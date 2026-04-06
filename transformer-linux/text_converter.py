@@ -4,6 +4,7 @@ import chardet
 
 from opencc import OpenCC
 import jieba
+import udkanbun
 
 
 def detect_encoding(file_path, log_callback=None, force_encoding=None):
@@ -676,6 +677,9 @@ _jieba_modern = None
 _jieba_ancient = None
 _jieba_ancient_userdict_loaded = None  # 记录古汉语分词器当前加载的用户词典
 
+# UD-Kanbun 分词器实例（用于古汉语）
+_udkanbun = None
+
 
 def _get_jieba_modern(dict_path=None, log_callback=None):
     """
@@ -786,6 +790,70 @@ def _segment_with_jieba_ancient(text, dict_path=None, userdict_path=None, log_ca
         return text
 
 
+def _get_udkanbun(log_callback=None):
+    """
+    获取 UD-Kanbun 分词器实例（单例模式）
+
+    :param log_callback: 日志回调函数
+    :return: UD-Kanbun 分词器实例，如果不可用则返回 None
+    """
+    global _udkanbun
+
+    if _udkanbun is None:
+        try:
+            _udkanbun = udkanbun.load()
+            if log_callback:
+                log_callback("UD-Kanbun 古汉语分词器初始化完成")
+        except Exception as e:
+            if log_callback:
+                log_callback(f"UD-Kanbun 初始化失败: {e}")
+            return None
+
+    return _udkanbun
+
+
+def _segment_with_udkanbun(text, log_callback=None):
+    """
+    使用 UD-Kanbun 对文本进行分词（专门针对古汉语/文言文）
+    按行处理，保留换行符
+
+    :param text: 待分词的文本
+    :param log_callback: 日志回调函数
+    :return: 分词后的文本（词之间用 '\x1e' 分隔，行之间用 '\n' 分隔），失败返回原文
+    """
+
+    try:
+        tokenizer = _get_udkanbun(log_callback)
+        if tokenizer is None:
+            return text
+
+        # 按行处理，保留换行符结构
+        lines = text.split('\n')
+        segmented_lines = []
+
+        for line in lines:
+            if not line.strip():  # 空行直接保留
+                segmented_lines.append(line)
+                continue
+
+            # 对每一行进行分词
+            doc = tokenizer(line)
+            # 收集所有 token 的 form（排除 ROOT，id=0 的 _）
+            tokens = []
+            for token in doc:
+                if token.id != 0:  # 排除 ROOT 节点
+                    tokens.append(token.form)
+
+            segmented_line = '\x1e'.join(tokens)
+            segmented_lines.append(segmented_line)
+
+        return '\n'.join(segmented_lines)
+    except Exception as e:
+        if log_callback:
+            log_callback(f"UD-Kanbun 分词失败: {e}，使用原文")
+        return text
+
+
 def get_jieba_dict_path():
     """
     获取结巴分词主词典文件路径
@@ -836,7 +904,7 @@ def convert_txt_file(input_path, output_folder, conversion_type, log_callback=No
     :param log_callback: 日志回调函数
     :param is_cancelled_callback: 取消检查回调函数
     :param force_encoding: 强制指定的编码
-    :param segment_mode: 分词模式，可选 'jieba_modern'（结巴-现代汉语）、'jieba_ancient'（结巴-古汉语）或 None（不分词）
+    :param segment_mode: 分词模式，可选 'jieba_modern'（结巴-现代汉语）、'jieba_ancient'（结巴-古汉语）、'udkanbun'（UD-Kanbun古汉语）或 None（不分词）
     :return: 转换后的文件路径或False
     """
     def log(msg):
@@ -890,6 +958,9 @@ def convert_txt_file(input_path, output_folder, conversion_type, log_callback=No
             # 获取用户自定义词典路径（根据转换类型选择不同的词典）
             userdict_path = get_jieba_userdict_path(conversion_type)
             segmented_content = _segment_with_jieba_ancient(content, dict_path, userdict_path, log_callback)
+        elif segment_mode == 'udkanbun':
+            log("使用 UD-Kanbun 进行古汉语分词...")
+            segmented_content = _segment_with_udkanbun(content, log_callback)
 
         # 检查是否已取消
         if is_cancelled_callback and is_cancelled_callback():
@@ -903,7 +974,7 @@ def convert_txt_file(input_path, output_folder, conversion_type, log_callback=No
             return False
 
         # 移除分词标记，恢复原始格式
-        if segment_mode in ('jieba_modern', 'jieba_ancient'):
+        if segment_mode in ('jieba_modern', 'jieba_ancient', 'udkanbun'):
             log("移除分词标记，恢复原始格式...")
             converted_content = _remove_segment_marks(converted_content)
 
