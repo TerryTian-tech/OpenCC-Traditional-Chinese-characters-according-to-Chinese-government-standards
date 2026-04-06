@@ -425,14 +425,9 @@ class ModernUI(QMainWindow):
         self.jieba_ancient_cb = QCheckBox("转换前使用结巴分词对古汉语文本进行分词预处理（experimental）")
         self.jieba_ancient_cb.stateChanged.connect(lambda state: self.on_segment_mode_changed("jieba_ancient", state))
 
-        # UD-Kanbun 分词选项
-        self.udkanbun_cb = QCheckBox("转换前使用 UD-Kanbun 对古汉语文本进行分词预处理（experimental）")
-        self.udkanbun_cb.stateChanged.connect(lambda state: self.on_segment_mode_changed("udkanbun", state))
-
         segment_options_layout.addWidget(self.no_segment_cb)
         segment_options_layout.addWidget(self.jieba_modern_cb)
         segment_options_layout.addWidget(self.jieba_ancient_cb)
-        segment_options_layout.addWidget(self.udkanbun_cb)
         segment_layout.addLayout(segment_options_layout)
 
         # 从设置中恢复分词选择
@@ -449,14 +444,11 @@ class ModernUI(QMainWindow):
         self.no_segment_cb.setChecked(False)
         self.jieba_modern_cb.setChecked(False)
         self.jieba_ancient_cb.setChecked(False)
-        self.udkanbun_cb.setChecked(False)
 
         if mode == "jieba_modern":
             self.jieba_modern_cb.setChecked(True)
         elif mode == "jieba_ancient":
             self.jieba_ancient_cb.setChecked(True)
-        elif mode == "udkanbun":
-            self.udkanbun_cb.setChecked(True)
         else:
             self.no_segment_cb.setChecked(True)
 
@@ -469,27 +461,19 @@ class ModernUI(QMainWindow):
         if mode == "none":
             self.jieba_modern_cb.setChecked(False)
             self.jieba_ancient_cb.setChecked(False)
-            self.udkanbun_cb.setChecked(False)
         elif mode == "jieba_modern":
             self.no_segment_cb.setChecked(False)
             self.jieba_ancient_cb.setChecked(False)
-            self.udkanbun_cb.setChecked(False)
         elif mode == "jieba_ancient":
             self.no_segment_cb.setChecked(False)
             self.jieba_modern_cb.setChecked(False)
-            self.udkanbun_cb.setChecked(False)
-        elif mode == "udkanbun":
-            self.no_segment_cb.setChecked(False)
-            self.jieba_modern_cb.setChecked(False)
-            self.jieba_ancient_cb.setChecked(False)
 
         # 保存设置
         self.settings.setValue("segment_mode", mode)
         mode_display = {
             "none": "不分词",
             "jieba_modern": "结巴分词（现代汉语）",
-            "jieba_ancient": "结巴分词（古汉语）",
-            "udkanbun": "UD-Kanbun（古汉语）"
+            "jieba_ancient": "结巴分词（古汉语）"
         }
         self.statusBar().showMessage(f"分词设置已更改为: {mode_display.get(mode, '不分词')}")
 
@@ -546,7 +530,7 @@ class ModernUI(QMainWindow):
             QWidget {
                 background-color: #2b2b2b;
                 color: #ffffff;
-                font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+                font-family: "Microsoft YaHei", sans-serif;
             }
             QPushButton {
                 background-color: #375a7f;
@@ -698,7 +682,7 @@ class ModernUI(QMainWindow):
             QWidget {
                 background-color: #f0f0f0;
                 color: #333333;
-                font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+                font-family: "Microsoft YaHei", sans-serif;
             }
             QPushButton {
                 background-color: #4a86e8;
@@ -841,8 +825,6 @@ class ModernUI(QMainWindow):
             segment_mode = 'jieba_modern'
         elif self.jieba_ancient_cb.isChecked():
             segment_mode = 'jieba_ancient'
-        elif self.udkanbun_cb.isChecked():
-            segment_mode = 'udkanbun'
         else:
             segment_mode = 'none'
         self.settings.setValue("segment_mode", segment_mode)
@@ -1118,8 +1100,6 @@ class ModernUI(QMainWindow):
             segment_mode = 'jieba_modern'
         elif self.jieba_ancient_cb.isChecked():
             segment_mode = 'jieba_ancient'
-        elif self.udkanbun_cb.isChecked():
-            segment_mode = 'udkanbun'
         else:
             segment_mode = None
 
@@ -1127,8 +1107,7 @@ class ModernUI(QMainWindow):
         segment_mode_display = {
             None: '不分词',
             'jieba_modern': '结巴分词（现代汉语）',
-            'jieba_ancient': '结巴分词（古汉语）',
-            'udkanbun': 'UD-Kanbun（古汉语）'
+            'jieba_ancient': '结巴分词（古汉语）'
         }
         self.append_log(f"转换设置：保留格式={preserve_format}，转换脚注={convert_footnotes}，强制编码={force_encoding or '自动'}，分词模式={segment_mode_display.get(segment_mode, '不分词')}")
 
