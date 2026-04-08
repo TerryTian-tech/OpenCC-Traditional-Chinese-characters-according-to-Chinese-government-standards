@@ -671,10 +671,12 @@ def _convert_lrc_lyric_text(cc, text):
     return ''.join(result)
 
 
-# 全局变量存储两个独立的分词器实例
+# 全局变量存储三个独立的分词器实例
 _jieba_modern = None
-_jieba_ancient = None
-_jieba_ancient_userdict_loaded = None  # 记录古汉语分词器当前加载的用户词典
+_jieba_ancient_simplified = None  # 古汉语-简体主词典分词器（用于 s2t）
+_jieba_ancient_traditional = None  # 古汉语-繁体主词典分词器（用于 t2gov, t2gov_keep_simp, t2s）
+_jieba_ancient_simplified_userdict_loaded = None  # 记录古汉语简体分词器当前加载的用户词典
+_jieba_ancient_traditional_userdict_loaded = None  # 记录古汉语繁体分词器当前加载的用户词典
 
 
 def _get_jieba_modern(dict_path=None, log_callback=None):
@@ -706,45 +708,86 @@ def _get_jieba_modern(dict_path=None, log_callback=None):
     return _jieba_modern
 
 
-def _get_jieba_ancient(dict_path=None, userdict_path=None, log_callback=None):
+def _get_jieba_ancient_simplified(dict_path=None, userdict_path=None, log_callback=None):
     """
-    获取古汉语分词器实例（单例模式）
-    使用独立的 Tokenizer 实例，支持用户自定义词典
+    获取古汉语分词器实例（简体主词典，单例模式）
+    用于 s2t（简体转规范繁体）转换
 
     :param dict_path: 主词典路径
     :param userdict_path: 用户自定义词典路径
     :param log_callback: 日志回调函数
-    :return: 古汉语分词器实例
+    :return: 古汉语简体主词典分词器实例
     """
-    global _jieba_ancient, _jieba_ancient_userdict_loaded
+    global _jieba_ancient_simplified, _jieba_ancient_simplified_userdict_loaded
 
-    if _jieba_ancient is None:
-        _jieba_ancient = jieba.Tokenizer()
-        _jieba_ancient.cache_file = "jieba.ancient.cache"
+    if _jieba_ancient_simplified is None:
+        _jieba_ancient_simplified = jieba.Tokenizer()
+        _jieba_ancient_simplified.cache_file = "jieba.ancient.simplified.cache"
 
         # 设置主词典
         if dict_path and os.path.exists(dict_path):
-            _jieba_ancient.set_dictionary(dict_path)
+            _jieba_ancient_simplified.set_dictionary(dict_path)
             if log_callback:
-                log_callback(f"古汉语分词器已设置主词典: {dict_path}")
+                log_callback(f"古汉语简体分词器已设置主词典: {dict_path}")
 
         # 初始化
-        _jieba_ancient.initialize()
+        _jieba_ancient_simplified.initialize()
         if log_callback:
-            log_callback("古汉语分词器初始化完成")
+            log_callback("古汉语简体分词器初始化完成")
 
     # 加载用户自定义词典（如果指定且未加载）
-    if userdict_path and _jieba_ancient_userdict_loaded != userdict_path:
+    if userdict_path and _jieba_ancient_simplified_userdict_loaded != userdict_path:
         if os.path.exists(userdict_path):
-            _jieba_ancient.load_userdict(userdict_path)
-            _jieba_ancient_userdict_loaded = userdict_path
+            _jieba_ancient_simplified.load_userdict(userdict_path)
+            _jieba_ancient_simplified_userdict_loaded = userdict_path
             if log_callback:
-                log_callback(f"古汉语分词器已加载用户词典: {userdict_path}")
+                log_callback(f"古汉语简体分词器已加载用户词典: {userdict_path}")
         else:
             if log_callback:
                 log_callback(f"用户词典不存在: {userdict_path}")
 
-    return _jieba_ancient
+    return _jieba_ancient_simplified
+
+
+def _get_jieba_ancient_traditional(dict_path=None, userdict_path=None, log_callback=None):
+    """
+    获取古汉语分词器实例（繁体主词典，单例模式）
+    用于 t2gov、t2gov_keep_simp、t2s 转换
+
+    :param dict_path: 主词典路径
+    :param userdict_path: 用户自定义词典路径
+    :param log_callback: 日志回调函数
+    :return: 古汉语繁体主词典分词器实例
+    """
+    global _jieba_ancient_traditional, _jieba_ancient_traditional_userdict_loaded
+
+    if _jieba_ancient_traditional is None:
+        _jieba_ancient_traditional = jieba.Tokenizer()
+        _jieba_ancient_traditional.cache_file = "jieba.ancient.traditional.cache"
+
+        # 设置主词典
+        if dict_path and os.path.exists(dict_path):
+            _jieba_ancient_traditional.set_dictionary(dict_path)
+            if log_callback:
+                log_callback(f"古汉语繁体分词器已设置主词典: {dict_path}")
+
+        # 初始化
+        _jieba_ancient_traditional.initialize()
+        if log_callback:
+            log_callback("古汉语繁体分词器初始化完成")
+
+    # 加载用户自定义词典（如果指定且未加载）
+    if userdict_path and _jieba_ancient_traditional_userdict_loaded != userdict_path:
+        if os.path.exists(userdict_path):
+            _jieba_ancient_traditional.load_userdict(userdict_path)
+            _jieba_ancient_traditional_userdict_loaded = userdict_path
+            if log_callback:
+                log_callback(f"古汉语繁体分词器已加载用户词典: {userdict_path}")
+        else:
+            if log_callback:
+                log_callback(f"用户词典不存在: {userdict_path}")
+
+    return _jieba_ancient_traditional
 
 
 def _segment_with_jieba_modern(text, dict_path=None, log_callback=None):
@@ -766,18 +809,24 @@ def _segment_with_jieba_modern(text, dict_path=None, log_callback=None):
         return text
 
 
-def _segment_with_jieba_ancient(text, dict_path=None, userdict_path=None, log_callback=None):
+def _segment_with_jieba_ancient(text, dict_path=None, userdict_path=None, log_callback=None, conversion_type=None):
     """
     使用古汉语分词器对文本进行分词
+    根据 conversion_type 选择简体或繁体主词典分词器
 
     :param text: 待分词的文本
     :param dict_path: 主词典路径
     :param userdict_path: 用户自定义词典路径
     :param log_callback: 日志回调函数
+    :param conversion_type: 转换类型，用于选择简体或繁体分词器
     :return: 分词后的文本（词之间用 '\x1e' 分隔）
     """
     try:
-        tokenizer = _get_jieba_ancient(dict_path, userdict_path, log_callback)
+        # s2t 使用简体主词典分词器，其他（t2gov, t2gov_keep_simp, t2s）使用繁体主词典分词器
+        if conversion_type == 's2t':
+            tokenizer = _get_jieba_ancient_simplified(dict_path, userdict_path, log_callback)
+        else:
+            tokenizer = _get_jieba_ancient_traditional(dict_path, userdict_path, log_callback)
         tokens = tokenizer.cut(text, cut_all=False)
         return '\x1e'.join(tokens)
     except Exception as e:
@@ -786,14 +835,36 @@ def _segment_with_jieba_ancient(text, dict_path=None, userdict_path=None, log_ca
         return text
 
 
-def get_jieba_dict_path():
+def get_jieba_dict_path(segment_mode=None, conversion_type=None):
     """
     获取结巴分词主词典文件路径
 
+    :param segment_mode: 分词模式，'jieba_modern' 或 'jieba_ancient'
+    :param conversion_type: 转换类型，如 's2t', 't2s', 't2gov' 等
     :return: 主词典文件的完整路径
     """
-    jieba_dir = os.path.dirname(jieba.__file__)
-    # 现代汉语和古汉语模式均使用默认词典 dict.txt
+    # 获取项目根目录下的 jieba 文件夹路径
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(current_dir)
+    jieba_dir = os.path.join(project_root, 'jieba')
+
+    # 现代汉语模式使用默认词典 dict.txt
+    if segment_mode == 'jieba_modern':
+        return os.path.join(jieba_dir, 'dict.txt')
+
+    # 古汉语模式根据转换类型选择不同的主词典
+    if segment_mode == 'jieba_ancient':
+        # s2t（简体转规范繁体）使用 dict_ancient_chinese.txt（简体主词典）
+        if conversion_type == 's2t':
+            return os.path.join(jieba_dir, 'dict_ancient_chinese.txt')
+        # t2gov、t2gov_keep_simp（繁体转规范繁体）和 t2s（繁体转简体）使用 dict_ancient_chinese_traditional.txt（繁体主词典）
+        elif conversion_type in ('t2gov', 't2gov_keep_simp', 't2s'):
+            return os.path.join(jieba_dir, 'dict_ancient_chinese_traditional.txt')
+        else:
+            # 默认使用简体主词典
+            return os.path.join(jieba_dir, 'dict_ancient_chinese.txt')
+
+    # 默认返回默认词典
     return os.path.join(jieba_dir, 'dict.txt')
 
 
@@ -804,10 +875,13 @@ def get_jieba_userdict_path(conversion_type):
     :param conversion_type: 转换类型
     :return: 用户自定义词典的完整路径
     """
-    jieba_dir = os.path.dirname(jieba.__file__)
+    # 获取项目根目录下的 jieba 文件夹路径
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(current_dir)
+    jieba_dir = os.path.join(project_root, 'jieba')
 
-    # 简转繁（s2t）使用 userdict.txt（简体用户词典）
-    # 其他转换选项使用 userdict_traditional.txt（繁体用户词典）
+    # s2t（简体转规范繁体）使用 userdict.txt（简体用户词典）
+    # t2gov、t2gov_keep_simp（繁体转规范繁体）和 t2s（繁体转简体）使用 userdict_traditional.txt（繁体用户词典）
     if conversion_type == 's2t':
         return os.path.join(jieba_dir, 'userdict.txt')
     else:
@@ -880,16 +954,28 @@ def convert_txt_file(input_path, output_folder, conversion_type, log_callback=No
             return False
 
         # 分词处理（如果需要）
+        # 注意：t2new 和 t2new_keep_simp 模式（只转换繁体旧字形到新字形）不启用分词功能
+        if conversion_type in ('t2new', 't2new_keep_simp'):
+            if segment_mode in ('jieba_modern', 'jieba_ancient'):
+                log(f"转换类型 {conversion_type} 不启用分词功能")
+            segment_mode = None
+
         segmented_content = content
-        dict_path = get_jieba_dict_path()
         if segment_mode == 'jieba_modern':
             log("使用结巴分词器（现代汉语）进行分词...")
+            dict_path = get_jieba_dict_path(segment_mode, conversion_type)
             segmented_content = _segment_with_jieba_modern(content, dict_path, log_callback)
         elif segment_mode == 'jieba_ancient':
-            log("使用结巴分词器（古汉语）进行分词...")
+            # 根据转换类型选择不同的分词器和词典
+            if conversion_type == 's2t':
+                log("使用结巴分词器（古汉语-简体主词典）进行分词...")
+            else:
+                log("使用结巴分词器（古汉语-繁体主词典）进行分词...")
+            # 获取主词典路径（根据转换类型选择不同的主词典）
+            dict_path = get_jieba_dict_path(segment_mode, conversion_type)
             # 获取用户自定义词典路径（根据转换类型选择不同的词典）
             userdict_path = get_jieba_userdict_path(conversion_type)
-            segmented_content = _segment_with_jieba_ancient(content, dict_path, userdict_path, log_callback)
+            segmented_content = _segment_with_jieba_ancient(content, dict_path, userdict_path, log_callback, conversion_type)
 
         # 检查是否已取消
         if is_cancelled_callback and is_cancelled_callback():

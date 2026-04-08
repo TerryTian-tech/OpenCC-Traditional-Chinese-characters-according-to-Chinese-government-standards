@@ -496,7 +496,7 @@ class ModernUI(QMainWindow):
         self.jieba_modern_cb.stateChanged.connect(lambda state: self.on_segment_mode_changed("jieba_modern", state))
 
         # 结巴分词（古汉语）选项
-        self.jieba_ancient_cb = QCheckBox("转换前使用结巴分词对古汉语文本进行分词预处理（experimental）")
+        self.jieba_ancient_cb = QCheckBox("转换前使用结巴分词对古汉语文本进行分词预处理")
         self.jieba_ancient_cb.stateChanged.connect(lambda state: self.on_segment_mode_changed("jieba_ancient", state))
 
         segment_options_layout.addWidget(self.no_segment_cb)
