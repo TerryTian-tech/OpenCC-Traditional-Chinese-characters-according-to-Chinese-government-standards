@@ -843,10 +843,7 @@ def get_jieba_dict_path(segment_mode=None, conversion_type=None):
     :param conversion_type: 转换类型，如 's2t', 't2s', 't2gov' 等
     :return: 主词典文件的完整路径
     """
-    # 获取项目根目录下的 jieba 文件夹路径
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(current_dir)
-    jieba_dir = os.path.join(project_root, 'jieba')
+    jieba_dir = os.path.dirname(jieba.__file__)
 
     # 现代汉语模式使用默认词典 dict.txt
     if segment_mode == 'jieba_modern':
@@ -875,10 +872,7 @@ def get_jieba_userdict_path(conversion_type):
     :param conversion_type: 转换类型
     :return: 用户自定义词典的完整路径
     """
-    # 获取项目根目录下的 jieba 文件夹路径
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(current_dir)
-    jieba_dir = os.path.join(project_root, 'jieba')
+    jieba_dir = os.path.dirname(jieba.__file__)
 
     # s2t（简体转规范繁体）使用 userdict.txt（简体用户词典）
     # t2gov、t2gov_keep_simp（繁体转规范繁体）和 t2s（繁体转简体）使用 userdict_traditional.txt（繁体用户词典）
