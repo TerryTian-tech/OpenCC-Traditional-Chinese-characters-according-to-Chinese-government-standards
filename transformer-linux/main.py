@@ -530,7 +530,7 @@ class ModernUI(QMainWindow):
             QWidget {
                 background-color: #2b2b2b;
                 color: #ffffff;
-                font-family: "Microsoft YaHei", sans-serif;
+                font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
             }
             QPushButton {
                 background-color: #375a7f;
@@ -682,7 +682,7 @@ class ModernUI(QMainWindow):
             QWidget {
                 background-color: #f0f0f0;
                 color: #333333;
-                font-family: "Microsoft YaHei", sans-serif;
+                font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
             }
             QPushButton {
                 background-color: #4a86e8;
