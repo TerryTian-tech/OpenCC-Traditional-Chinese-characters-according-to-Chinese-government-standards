@@ -54,7 +54,7 @@ cp -rf ../jieba/* "$(python3 -c "import jieba, os; print(os.path.dirname(jieba._
 python3 main.py
 ```
 
-结巴分词支持词典位于jieba目录下，其中现代汉语分词词典来自[结巴分词仓库](https://github.com/fxsjy/jieba)，古汉语分词默认词典使用了[gumblex](https://github.com/gumblex)制作的[jiebazhc](https://github.com/The-Orizon/nlputils)。
+结巴分词支持词典位于jieba目录下，其中现代汉语分词词典来自[结巴分词仓库](https://github.com/fxsjy/jieba)，古汉语分词默认词典使用了[Dingyuan Wang](https://github.com/gumblex)制作的[jiebazhc](https://github.com/The-Orizon/nlputils)。
 
 > [!NOTE]
 >在Windows系统上，部分情况下转换doc文档时会出现错误提示“AttributeError: module ‘win32com.gen_py.00020905-0000-4B30-A977-D214852036FFx0x3x0’ has no attribute ‘CLSIDToClassMap’”。如出现该错误，可尝试删除C:\Users\administrator（注：此处为你的计算机用户名，默认名称为administrator或admin，如有微软账户一般则为微软账户名）\AppData\Local\Temp\gen_py\3.13(注：此处为你安装的Python版本号)下的缓存文件夹00020905-0000-4B30-A977-D214852036FFx0x3x0，再重新运行转换器。如果错误提示代号并非00020905-0000-4B30-A977-D214852036FFx0x3x0，亦可照此操作以排除故障。
@@ -80,4 +80,4 @@ python3 main.py
 
 [Apache License 2.0](https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/blob/main/LICENSE)
 
-jieba目录下的dict.txt来自[结巴分词仓库](https://github.com/fxsjy/jieba)，dict_ancient_chinese.txt和dict_ancient_chinese_traditional.txt来自[gumblex](https://github.com/gumblex)制作的[jiebazhc](https://github.com/The-Orizon/nlputils)。以上文件遵循MIT License开源，特此说明。
+jieba目录下的dict.txt来自[结巴分词仓库](https://github.com/fxsjy/jieba)，dict_ancient_chinese.txt和dict_ancient_chinese_traditional.txt来自[Dingyuan Wang](https://github.com/gumblex)制作的[jiebazhc](https://github.com/The-Orizon/nlputils)。以上文件遵循MIT License开源，特此说明。
