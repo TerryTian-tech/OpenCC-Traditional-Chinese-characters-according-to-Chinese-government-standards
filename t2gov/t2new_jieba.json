@@ -1,0 +1,16 @@
+{
+  "name": "Traditional Chinese (old Glyphs) to Traditional Chinese (Printed Common characters)",
+  "segmentation": {
+    "type": "mmseg",
+    "dict": {
+      "type": "text",
+      "file": "GovVariants.txt"
+    }
+  },
+  "conversion_chain": [{
+    "dict": {
+      "type": "text",
+      "file": "GovVariants.txt"
+    }
+  }]
+}

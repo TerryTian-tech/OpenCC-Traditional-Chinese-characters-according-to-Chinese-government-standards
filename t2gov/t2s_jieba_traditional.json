@@ -1,0 +1,23 @@
+{
+  "name": "Traditional Chinese to Simplified Chinese",
+  "segmentation": {
+    "type": "jieba",
+    "resources": {
+      "dict_path": "jieba_dict/jieba.dict.ancient.chinese.traditional.utf8",
+      "model_path": "jieba_dict/hmm_model.utf8",
+      "user_dict_path": "jieba_dict/user.dict.traditional.utf8"
+    }
+  },
+  "conversion_chain": [{
+    "dict": {
+      "type": "group",
+      "dicts": [{
+        "type": "text",
+        "file": "TSPhrases.txt"
+      }, {
+        "type": "text",
+        "file": "TSCharacters.txt"
+      }]
+    }
+  }]
+}
