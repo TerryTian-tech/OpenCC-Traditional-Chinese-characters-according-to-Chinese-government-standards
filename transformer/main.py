@@ -483,7 +483,7 @@ class ModernUI(QMainWindow):
 
         # 分词说明
         segment_desc = QLabel(
-            "分词功能可以在转换前对文本进行分词预处理，以提高转换准确性。\n"
+            "分词功能可以在转换前对文本进行分词预处理，以提高转换准确性。"
         )
         segment_desc.setWordWrap(True)
         segment_layout.addWidget(segment_desc)
