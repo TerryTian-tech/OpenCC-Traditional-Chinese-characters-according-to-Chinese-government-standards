@@ -41,9 +41,10 @@ OpenCC转换的配置文件存于本仓库的“t2gov”文件夹下，使用者
 第三步：将本开源仓库 t2gov 文件夹中的 `t2gov_keep_simp.json` 、 `TGCharacters_keep_simp.txt` 、 `TGPhrases.txt` 这三个文件保存到本地，并复制到 `C:\Program Files\Rime\weasel-0.17.4\data\opencc` 下。
 
 注意：
-1.这里的路径是以0.17.4版本在Windows环境下为例。假如安装的输入法版本是0.17.5，那么文件夹名就为 `weasel-0.17.5` 。
 
-2.`TGCharacters_keep_simp.txt` 、 `TGPhrases.txt` 两个文件应删除开头的注释（以＃开头的行）与空行。
+1）这里的路径是以0.17.4版本在Windows环境下为例。假如安装的输入法版本是0.17.5，那么文件夹名就为 `weasel-0.17.5` 。
+
+2）`TGCharacters_keep_simp.txt` 、 `TGPhrases.txt` 两个文件应删除开头的注释（以＃开头的行）与空行。
 
 第四步：在小狼毫的用户文件夹（Windows下的路径为`C:\Users\（你的计算机用户名）\AppData\Roaming\Rime`）下新建文本文件，写入如下内容：
 
