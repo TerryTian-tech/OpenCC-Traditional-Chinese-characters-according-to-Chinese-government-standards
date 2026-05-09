@@ -117,6 +117,8 @@ python3 main.py
 
 * [telegram-zh-Hant-CN](https://github.com/soizo/telegram-zh-Hant-CN)  维护者：[SoizoKtantas](https://github.com/soizo)
 
+* [Mainland_Traditional_Chinese_Converter](https://github.com/Xebec33/Mainland_Traditional_Chinese_Converter)  维护者：[Xebec33](https://github.com/Xebec33)
+
 ## Contributors 开源贡献者
 
 由于本仓库同时在Gitee和GitCode平台托管，特此将所有平台的开源贡献者列表如下：
