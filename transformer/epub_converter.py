@@ -11,40 +11,18 @@ EPUB 电子书繁简转换模块
 
 import os
 import re
+import ebooklib
+from ebooklib import epub
 from typing import Callable, Optional, Union
-
 from opencc import OpenCC
 from bs4 import BeautifulSoup, NavigableString
 from bs4.formatter import XMLFormatter
-
-# 防止在无 GUI 环境中因 ebooklib 日志刷屏
 import logging
-logging.getLogger('ebooklib').setLevel(logging.WARNING)
-
-try:
-    import ebooklib
-    from ebooklib import epub
-except ImportError:
-    epub = None
-    ebooklib = None
-
+logging.getLogger('ebooklib').setLevel(logging.WARNING) # 防止在无 GUI 环境中因 ebooklib 日志刷屏
 
 # ---------------------------------------------------------------------------
 # 内部工具
 # ---------------------------------------------------------------------------
-
-def _import_check(log_callback: Optional[Callable] = None) -> bool:
-    """检查依赖库是否可用，不可用时输出提示"""
-    if epub is None:
-        msg = (
-            "错误：缺少 ebooklib 库，无法处理 EPUB 文件。\n"
-            "请运行: pip install ebooklib beautifulsoup4 lxml"
-        )
-        if log_callback:
-            log_callback(msg)
-        return False
-    return True
-
 
 def _convert_dom_text(soup: BeautifulSoup, cc: OpenCC) -> None:
     """
@@ -142,10 +120,6 @@ def convert_epub_file(
     def log(msg: str) -> None:
         if log_callback:
             log_callback(msg)
-
-    # --- 依赖检查 ---
-    if not _import_check(log_callback):
-        return False
 
     # --- 参数校验 ---
     if not os.path.isfile(input_path):
