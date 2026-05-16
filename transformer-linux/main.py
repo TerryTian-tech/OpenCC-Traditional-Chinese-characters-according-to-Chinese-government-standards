@@ -13,7 +13,7 @@ from constants import VERSION
 from updater import UpdateChecker
 from text_converter import convert_txt_file, convert_srt_file, convert_ass_file, convert_lrc_file
 from doc_converter import convert_docx_file
-
+from epub_converter import convert_epub_file
 
 class ConversionWorker(QThread):
     """
@@ -144,8 +144,19 @@ class ConversionWorker(QThread):
                     return True
                 else:
                     return False
+            elif file_ext == '.epub':
+                result = convert_epub_file(
+                    self.input_path, self.output_folder, self.conversion_type,
+                    lambda msg: self.log_message.emit(msg),
+                    lambda: self._is_cancelled
+                )
+                if result:
+                    self.progress_updated.emit(100, "转换完成!")
+                    return True
+                else:
+                    return False
             else:
-                self.log_message.emit("错误：不支持的文件格式，仅支持docx、txt、srt、ass、ssa、lrc文件")
+                self.log_message.emit("错误：不支持的文件格式，仅支持docx、txt、srt、ass、ssa、lrc、epub文件")
                 return False
 
         # 处理文件夹
@@ -158,11 +169,11 @@ class ConversionWorker(QThread):
                     return False
 
                 file_ext = os.path.splitext(f)[1].lower()
-                if file_ext in ['.docx', '.txt', '.srt', '.ass', '.ssa', '.lrc']:
+                if file_ext in ['.docx', '.txt', '.srt', '.ass', '.ssa', '.lrc', '.epub']:
                     supported_files.append(f)
 
             if not supported_files:
-                self.log_message.emit("在指定文件夹中未找到支持的docx、txt、srt、ass、ssa、lrc文件")
+                self.log_message.emit("在指定文件夹中未找到支持的docx、txt、srt、ass、ssa、lrc、epub文件")
                 return False
 
             self.log_message.emit(f"找到 {len(supported_files)} 个文件待处理")
@@ -233,6 +244,17 @@ class ConversionWorker(QThread):
                         self.force_encoding
                     ):
                         success_count += 1
+
+                elif file_ext == '.epub':
+                    try:
+                        if convert_epub_file(
+                            file_path, self.output_folder, self.conversion_type,
+                            lambda msg: self.log_message.emit(msg),
+                            lambda: self._is_cancelled
+                        ):
+                            success_count += 1
+                    except Exception as e:
+                        self.log_message.emit(f"处理 {filename} 时出错: {str(e)}")
 
             self.log_message.emit(f"处理完成！成功转换 {success_count}/{total_files} 个文件")
             self.progress_updated.emit(100, "转换完成!")
@@ -1053,7 +1075,7 @@ class ModernUI(QMainWindow):
         elif choice == QMessageBox.StandardButton.No:  # 文件
             paths, _ = QFileDialog.getOpenFileNames(
                 self, "选择文件", "",
-                "文档文件 (*.docx *.txt *.srt *.ass *.ssa *.lrc);;所有文件 (*)"
+                "文档文件 (*.docx *.txt *.srt *.ass *.ssa *.lrc *.epub);;所有文件 (*)"
             )
             if paths:
                 # 如果选择了多个文件，只使用第一个或者让用户选择文件夹
