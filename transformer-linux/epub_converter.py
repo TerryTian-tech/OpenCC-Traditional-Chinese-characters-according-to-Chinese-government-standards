@@ -1,14 +1,3 @@
-"""
-EPUB 电子书繁简转换模块
-
-支持 EPUB 2 和 EPUB 3 格式：
-1. 使用 ebooklib 读取 EPUB 容器
-2. 遍历所有 XHTML 内容文件
-3. 使用 BeautifulSoup 解析 DOM，仅对纯文本节点做 OpenCC 转换
-4. 保留全部标签、属性、资源文件（CSS / 图片 / 字体等）
-5. 写回新的 EPUB 文件
-"""
-
 import os
 import re
 import ebooklib
