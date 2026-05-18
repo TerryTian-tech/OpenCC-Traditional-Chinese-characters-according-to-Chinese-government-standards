@@ -48,7 +48,7 @@ def _convert_xhtml_item(item, cc: OpenCC, log_callback: Optional[Callable]) -> N
     raw = item.get_content()
     # 尝试多种编码解码
     content = None
-    for enc in ('utf-8', 'utf-8-sig', 'gb18030', 'gbk'):
+    for enc in ('utf-8', 'utf-8-sig', 'gb18030', 'gbk', 'cp950', 'big5-hkscs'):
         try:
             content = raw.decode(enc)
             break
