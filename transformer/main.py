@@ -186,8 +186,7 @@ class ConversionWorker(QThread):
                 result = convert_epub_file(
                     self.input_path, self.output_folder, self.conversion_type,
                     lambda msg: self.log_message.emit(msg),
-                    lambda: self._is_cancelled,
-                    self.force_encoding
+                    lambda: self._is_cancelled
                 )
                 if result:
                     self.progress_updated.emit(100, "转换完成!")
@@ -326,8 +325,7 @@ class ConversionWorker(QThread):
                         if convert_epub_file(
                             file_path, self.output_folder, self.conversion_type,
                             lambda msg: self.log_message.emit(msg),
-                            lambda: self._is_cancelled,
-                            self.force_encoding
+                            lambda: self._is_cancelled
                         ):
                             success_count += 1
                     except Exception as e:
@@ -464,11 +462,9 @@ class ModernUI(QMainWindow):
 
         # 编码检测说明
         encoding_desc = QLabel(
-            "指定读取TXT和非标准EPUB文件时使用的编码，默认为自动检测。\n"
+            "指定读取TXT等文本文件时使用的编码，默认为自动检测。\n"
             "如果自动检测识别错误（例如Big5编码被误识别为GB18030），\n"
-            "可在此手动强制指定编码。\n"
-            "注意：此设置项会同时强制更改TXT和EPUB文件的编码检测方式，\n"
-            "设置后请不要将EPUB和TXT文件置于同一文件夹批量转换，转换后请手动调回自动检测。"
+            "可在此手动强制指定编码。"
         )
         encoding_desc.setWordWrap(True)
         encoding_group_layout.addWidget(encoding_desc)

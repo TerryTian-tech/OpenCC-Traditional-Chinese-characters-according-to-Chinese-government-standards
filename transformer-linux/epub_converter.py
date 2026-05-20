@@ -38,22 +38,16 @@ def _convert_dom_text(soup: BeautifulSoup, cc: OpenCC) -> None:
                 child.replace_with(NavigableString(converted))
 
 
-def _detect_encoding_from_bytes(raw_data: bytes, log_callback=None, force_encoding=None):
+def _detect_encoding_from_bytes(raw_data: bytes, log_callback=None):
     """从原始字节中检测编码，特别处理中文ANSI编码
 
     :param raw_data: 原始字节数据
     :param log_callback: 日志回调函数
-    :param force_encoding: 强制指定的编码（如 'big5'）。如果为 None 则自动检测。
     :return: 检测到的编码名称
     """
     def log(msg):
         if log_callback:
             log_callback(msg)
-
-    # 如果用户强制指定了编码，直接返回
-    if force_encoding:
-        log(f"用户强制指定编码: {force_encoding}")
-        return force_encoding
 
     # 首先尝试chardet检测
     result = chardet.detect(raw_data)
@@ -125,7 +119,7 @@ def _detect_encoding_from_bytes(raw_data: bytes, log_callback=None, force_encodi
                 continue
 
     # 如果检测到UTF-8但置信度不高，尝试GB18030
-    if encoding == 'utf-8' and confidence < 0.9:
+    if encoding == 'utf-8' and confidence < 0.8:
         try:
             # 尝试用GB18030解码
             decoded = raw_data.decode('gb18030', errors='strict')
@@ -155,14 +149,14 @@ def _detect_encoding_from_bytes(raw_data: bytes, log_callback=None, force_encodi
     return encoding
 
 
-def _convert_xhtml_item(item, cc: OpenCC, log_callback: Optional[Callable], force_encoding: Optional[str] = None) -> None:
+def _convert_xhtml_item(item, cc: OpenCC, log_callback: Optional[Callable]) -> None:
     """
     转换单个 XHTML 内容项。
     使用 BeautifulSoup 解析 → 文本节点转换 → 序列化回 item。
     """
     raw = item.get_content()
     # 使用智能编码检测（与 detect_encoding 共用核心逻辑）
-    detected_enc = _detect_encoding_from_bytes(raw, log_callback=log_callback, force_encoding=force_encoding)
+    detected_enc = _detect_encoding_from_bytes(raw, log_callback=log_callback)
     try:
         content = raw.decode(detected_enc)
     except (UnicodeDecodeError, LookupError):
@@ -194,8 +188,7 @@ def convert_epub_file(
     output_folder: str,
     conversion_type: str,
     log_callback: Optional[Callable[[str], None]] = None,
-    is_cancelled_callback: Optional[Callable[[], bool]] = None,
-    force_encoding: Optional[str] = None,
+    is_cancelled_callback: Optional[Callable[[], bool]] = None
 ) -> Union[str, bool]:
     """
     将 EPUB 文件中的文字内容进行繁简转换，输出新的 EPUB 文件。
@@ -278,7 +271,7 @@ def convert_epub_file(
             file_name = item.get_name()
             log(f"  [{doc_count}/{total_items}] 转换文档: {file_name}")
             try:
-                _convert_xhtml_item(item, cc, log_callback, force_encoding)
+                _convert_xhtml_item(item, cc, log_callback)
             except Exception as e:
                 log(f"  ⚠ 处理 {file_name} 时出错: {e}，已跳过该文件")
                 continue
