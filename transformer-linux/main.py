@@ -24,7 +24,7 @@ class ConversionWorker(QThread):
     log_message = Signal(str)  # 日志消息信号
 
     def __init__(self, input_path, output_folder, conversion_type='t2gov', preserve_format=True,
-                 convert_footnotes=True, force_encoding=None, segment_mode=None):
+                 convert_footnotes=True, force_encoding=None, segment_mode=None, input_paths=None):
         super().__init__()
         self.input_path = input_path
         self.output_folder = output_folder
@@ -33,6 +33,7 @@ class ConversionWorker(QThread):
         self.convert_footnotes = convert_footnotes
         self.force_encoding = force_encoding
         self.segment_mode = segment_mode
+        self.input_paths = input_paths
         self._is_cancelled = False
 
         # 根据分词模式自动调整OpenCC配置名称
@@ -73,6 +74,90 @@ class ConversionWorker(QThread):
         # 检查是否已取消
         if self._is_cancelled:
             return False
+
+        # 处理文件列表（多选文件模式）
+        if self.input_paths:
+            total_files = len(self.input_paths)
+            self.log_message.emit(f"找到 {total_files} 个文件待处理")
+            success_count = 0
+
+            for i, file_path in enumerate(self.input_paths, 1):
+                if self._is_cancelled:
+                    return False
+
+                progress = int((i / total_files) * 100)
+                self.progress_updated.emit(progress, f"处理文件 {i}/{total_files}: {os.path.basename(file_path)}")
+
+                file_ext = os.path.splitext(file_path)[1].lower()
+
+                if file_ext == '.docx':
+                    try:
+                        result = convert_docx_file(
+                            file_path, self.output_folder, self.conversion_type,
+                            self.preserve_format,
+                            self.convert_footnotes,
+                            lambda msg: self.log_message.emit(msg),
+                            lambda: self._is_cancelled
+                        )
+                        if result:
+                            success_count += 1
+                    except Exception as e:
+                        self.log_message.emit(f"处理 {os.path.basename(file_path)} 时出错: {str(e)}")
+
+                elif file_ext == '.txt':
+                    if convert_txt_file(
+                        file_path, self.output_folder, self.conversion_type,
+                        lambda msg: self.log_message.emit(msg),
+                        lambda: self._is_cancelled,
+                        self.force_encoding,
+                        self.segment_mode
+                    ):
+                        success_count += 1
+
+                elif file_ext == '.srt':
+                    if convert_srt_file(
+                        file_path, self.output_folder, self.conversion_type,
+                        lambda msg: self.log_message.emit(msg),
+                        lambda: self._is_cancelled,
+                        self.force_encoding
+                    ):
+                        success_count += 1
+
+                elif file_ext in ['.ass', '.ssa']:
+                    if convert_ass_file(
+                        file_path, self.output_folder, self.conversion_type,
+                        lambda msg: self.log_message.emit(msg),
+                        lambda: self._is_cancelled,
+                        self.force_encoding
+                    ):
+                        success_count += 1
+
+                elif file_ext == '.lrc':
+                    if convert_lrc_file(
+                        file_path, self.output_folder, self.conversion_type,
+                        lambda msg: self.log_message.emit(msg),
+                        lambda: self._is_cancelled,
+                        self.force_encoding
+                    ):
+                        success_count += 1
+
+                elif file_ext == '.epub':
+                    try:
+                        if convert_epub_file(
+                            file_path, self.output_folder, self.conversion_type,
+                            lambda msg: self.log_message.emit(msg),
+                            lambda: self._is_cancelled
+                        ):
+                            success_count += 1
+                    except Exception as e:
+                        self.log_message.emit(f"处理 {os.path.basename(file_path)} 时出错: {str(e)}")
+
+                else:
+                    self.log_message.emit(f"跳过不支持的文件: {os.path.basename(file_path)}")
+
+            self.log_message.emit(f"处理完成！成功转换 {success_count}/{total_files} 个文件")
+            self.progress_updated.emit(100, "转换完成!")
+            return success_count > 0
 
         # 处理单个文件
         if os.path.isfile(self.input_path):
@@ -276,6 +361,8 @@ class ModernUI(QMainWindow):
         saved_theme = self.settings.value("theme", "dark")
         self.current_theme = saved_theme
 
+        # 存储多选文件列表
+        self.selected_files = []
         self.init_ui()
 
     def init_ui(self):
@@ -877,6 +964,7 @@ class ModernUI(QMainWindow):
         input_browse_btn = QPushButton("浏览")
         input_browse_btn.setObjectName("browseButton")
         input_browse_btn.clicked.connect(self.browse_input)
+        self.input_edit.textEdited.connect(self.on_input_edited)
         input_layout.addWidget(QLabel("输入路径:"))
         input_layout.addWidget(self.input_edit)
         input_layout.addWidget(input_browse_btn)
@@ -1044,15 +1132,12 @@ class ModernUI(QMainWindow):
 
     def browse_input(self):
         """浏览输入路径"""
-        dialog = QFileDialog()
-        dialog.setFileMode(QFileDialog.ExistingFiles)
-        dialog.setOption(QFileDialog.ShowDirsOnly, True)
 
         # 使用标准QMessageBox，但修改按钮文本
         msg_box = QMessageBox(
             QMessageBox.Question,
             "选择类型",
-            "批量转换同一目录下所有文档请选择文件夹，转换单个文档请选择文件。",
+            "批量转换同一目录下所有文档请选择文件夹，转换单个或多个文档请选择文件。",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel,
             self
         )
@@ -1072,19 +1157,26 @@ class ModernUI(QMainWindow):
             path = QFileDialog.getExistingDirectory(self, "选择输入文件夹")
             if path:
                 self.input_edit.setText(path)
+                self.selected_files = []  # 清空多选文件列表
         elif choice == QMessageBox.StandardButton.No:  # 文件
             paths, _ = QFileDialog.getOpenFileNames(
                 self, "选择文件", "",
                 "文档文件 (*.docx *.txt *.srt *.ass *.ssa *.lrc *.epub);;所有文件 (*)"
             )
             if paths:
-                # 如果选择了多个文件，只使用第一个或者让用户选择文件夹
+                self.selected_files = paths
                 if len(paths) == 1:
                     self.input_edit.setText(paths[0])
                 else:
-                    folder = os.path.dirname(paths[0])
-                    self.input_edit.setText(folder)
+                    self.input_edit.setText(f"已选择 {len(paths)} 个文件")
 
+    def on_input_edited(self):
+        """用户手动编辑输入框时，清空多选文件列表"""
+        self.selected_files = []
+        # 如果当前显示的是多选占位文本，清空输入框以避免状态不同步
+        text = self.input_edit.text()
+        if text.startswith("已选择 ") and text.endswith(" 个文件"):
+            self.input_edit.clear()
     def browse_output(self):
         """浏览输出路径"""
         path = QFileDialog.getExistingDirectory(self, "选择输出文件夹")
@@ -1100,9 +1192,17 @@ class ModernUI(QMainWindow):
             QMessageBox.warning(self, "警告", "请输入完整的路径信息")
             return
 
-        if not os.path.exists(input_path):
-            QMessageBox.critical(self, "错误", "输入路径不存在")
-            return
+        # 验证输入路径
+        if self.selected_files:
+            # 多文件模式：验证每个文件是否存在
+            missing_files = [f for f in self.selected_files if not os.path.exists(f)]
+            if missing_files:
+                QMessageBox.critical(self, "错误", f"以下文件不存在:\n" + "\n".join(missing_files))
+                return
+        else:
+            if not os.path.exists(input_path):
+                QMessageBox.critical(self, "错误", "输入路径不存在")
+                return
 
         # 获取转换类型
         conversion_types = {
@@ -1130,6 +1230,17 @@ class ModernUI(QMainWindow):
         else:
             segment_mode = None
 
+        # 如果已有转换线程在运行，先取消并等待其结束
+        if hasattr(self, 'worker') and self.worker.isRunning():
+            self.worker.cancel()
+            self.worker.wait()
+            
+        # 启动转换线程
+        self.start_button.setEnabled(False)
+        self.cancel_button.setEnabled(True)
+        self.progress_bar.setValue(0)
+        self.log_text.clear()
+
         # 在日志中显示当前设置
         segment_mode_display = {
             None: '不分词',
@@ -1138,12 +1249,6 @@ class ModernUI(QMainWindow):
         }
         self.append_log(f"转换设置：保留格式={preserve_format}，转换脚注={convert_footnotes}，强制编码={force_encoding or '自动'}，分词模式={segment_mode_display.get(segment_mode, '不分词')}")
 
-        # 启动转换线程
-        self.start_button.setEnabled(False)
-        self.cancel_button.setEnabled(True)
-        self.progress_bar.setValue(0)
-        self.log_text.clear()
-
         self.worker = ConversionWorker(
             input_path,
             output_path,
@@ -1151,7 +1256,8 @@ class ModernUI(QMainWindow):
             preserve_format,  # 使用复选框的实际值
             convert_footnotes,  # 使用复选框的实际值
             force_encoding,
-            segment_mode
+            segment_mode, 
+            input_paths=self.selected_files if self.selected_files else None
         )
         self.worker.progress_updated.connect(self.update_progress)
         self.worker.conversion_finished.connect(self.conversion_finished)
