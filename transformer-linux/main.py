@@ -343,7 +343,7 @@ class ConversionWorker(QThread):
 
             self.log_message.emit(f"处理完成！成功转换 {success_count}/{total_files} 个文件")
             self.progress_updated.emit(100, "转换完成!")
-            return True
+            return success_count > 0
 
         else:
             self.log_message.emit("错误：输入的路径既不是有效的文件也不是文件夹")
