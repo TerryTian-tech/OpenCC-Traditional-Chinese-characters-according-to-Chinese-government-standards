@@ -1177,6 +1177,7 @@ class ModernUI(QMainWindow):
         text = self.input_edit.text()
         if text.startswith("已选择 ") and text.endswith(" 个文件"):
             self.input_edit.clear()
+            
     def browse_output(self):
         """浏览输出路径"""
         path = QFileDialog.getExistingDirectory(self, "选择输出文件夹")
