@@ -247,18 +247,6 @@ class DocxTraditionalSimplifiedConverter:
 
         except Exception as e:
             self.log(f"处理文档时出错: {e}")
-            # 如果出错，尝试直接复制文件
-            if temp_output and os.path.exists(temp_output):
-                shutil.copy2(temp_output, output_path)
-                if os.path.exists(temp_output):
-                    os.remove(temp_output)
-                self.log(f"已保存基本转换的文档: {output_path}")
-                return output_path
-            else:
-                # 最后的手段：直接复制原始文件
-                shutil.copy2(input_path, output_path)
-                self.log(f"转换失败，已复制原始文件到: {output_path}")
-                return output_path
 
     def _convert_paragraphs(self, paragraphs):
         """转换段落集合"""
