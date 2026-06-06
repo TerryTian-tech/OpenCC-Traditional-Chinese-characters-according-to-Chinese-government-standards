@@ -20,7 +20,7 @@ class ConversionWorker(QThread):
     转换工作线程，避免UI阻塞
     """
     progress_updated = Signal(int, str)  # 进度信号
-    conversion_finished = Signal(bool, str)  # 完成信号
+    conversion_finished = Signal(bool, str, int, int)  # 完成信号 (success, message, success_count, total_files)
     log_message = Signal(str)  # 日志消息信号
 
     def __init__(self, input_path, output_folder, conversion_type='t2gov', preserve_format=True,
@@ -44,19 +44,31 @@ class ConversionWorker(QThread):
 
     def run(self):
         try:
+            self._success_count = 0
+            self._total_files = 0
             success = self.process_files()
 
             # 检查是否已取消
             if self._is_cancelled:
-                self.conversion_finished.emit(False, "转换已被用户取消")
+                self.conversion_finished.emit(False, "转换已被用户取消", 0, 0)
                 return
 
-            if success:
-                self.conversion_finished.emit(True, "转换成功完成")
+            if self._total_files > 0:
+                # 多文件模式
+                if self._success_count == self._total_files:
+                    self.conversion_finished.emit(True, "转换成功完成", self._success_count, self._total_files)
+                elif self._success_count > 0:
+                    self.conversion_finished.emit(False, "部分文件转换失败", self._success_count, self._total_files)
+                else:
+                    self.conversion_finished.emit(False, "转换过程中出现错误", 0, self._total_files)
             else:
-                self.conversion_finished.emit(False, "转换过程中出现错误")
+                # 单文件模式
+                if success:
+                    self.conversion_finished.emit(True, "转换成功完成", 1, 1)
+                else:
+                    self.conversion_finished.emit(False, "转换过程中出现错误", 0, 1)
         except Exception as e:
-            self.conversion_finished.emit(False, f"转换失败: {str(e)}")
+            self.conversion_finished.emit(False, f"转换失败: {str(e)}", 0, 0)
 
     def cancel(self):
         """取消转换"""
@@ -190,7 +202,9 @@ class ConversionWorker(QThread):
 
             self.log_message.emit(f"处理完成！成功转换 {success_count}/{total_files} 个文件")
             self.progress_updated.emit(100, "转换完成!")
-            return success_count > 0
+            self._success_count = success_count
+            self._total_files = total_files
+            return success_count == total_files
 
         # 处理单个文件
         if os.path.isfile(self.input_path):
@@ -450,7 +464,9 @@ class ConversionWorker(QThread):
 
             self.log_message.emit(f"处理完成！成功转换 {success_count}/{total_files} 个文件")
             self.progress_updated.emit(100, "转换完成!")
-            return success_count > 0
+            self._success_count = success_count
+            self._total_files = total_files
+            return success_count == total_files
 
         else:
             self.log_message.emit("错误：输入的路径既不是有效的文件也不是文件夹")
@@ -1392,7 +1408,7 @@ class ModernUI(QMainWindow):
             self.append_log("正在取消转换...")
             self.statusBar().showMessage("正在取消转换...")
 
-    def conversion_finished(self, success, message):
+    def conversion_finished(self, success, message, success_count, total_files):
         """转换完成"""
         self.start_button.setEnabled(True)
         self.cancel_button.setEnabled(False)  # 转换完成后禁用取消按钮
@@ -1404,6 +1420,9 @@ class ModernUI(QMainWindow):
             if "取消" in message or "已取消" in message:
                 QMessageBox.information(self, "已取消", "转换已被用户取消")
                 self.statusBar().showMessage("转换已取消")
+            elif "部分" in message:
+                QMessageBox.warning(self, "部分失败", f"成功转换 {success_count}/{total_files} 个文件，部分文件转换失败")
+                self.statusBar().showMessage("部分转换失败")
             else:
                 QMessageBox.critical(self, "错误", message)
                 self.statusBar().showMessage("转换失败")
