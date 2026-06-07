@@ -1,7 +1,7 @@
 # OpenCC-Traditional Chinese to Traditional Chinese (The Chinese Government Standard)
 OpenCC开放中文转换 - 将混杂不同标准的繁体字形转换为《通用规范汉字表》（2013，内地现行法定标准）的规范繁体字形
 
-[展示页面](https://terrytian-tech.github.io/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/)
+[展示说明页面](https://terrytian-tech.github.io/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/)
 
 ## 仓库介绍
 2013年国务院颁布了《通用规范汉字表》作为内地实施《中华人民共和国国家通用语言文字法》的配套规范，该表在确定内地简体字规范字形的同时，在“附件1”中收录了与之对应的繁体字形。虽然内地的输入法软件、繁简转换插件并不完全遵照该表的繁体字形，但是该表的字形被视作内地繁体出版的标准进行适用。2021年又有《古籍印刷通用字规范字形表》（GB/Z 40637—2021）颁布，但是该表存在两个重大缺陷：一是没有确立繁体正体字形和异体字形的标准，正体、异体不作区分全部收录；二是《通用规范汉字表》的部分字形，《古籍印刷通用字规范字形表》不收，而《古籍印刷通用字规范字形表》在法律效力上只是“指导性技术文件”，效力低于《通用规范汉字表》。因此《古籍印刷通用字规范字形表》并未广泛推广开来，繁体出版的字形依据仍然是在《通用规范汉字表》的基础上进行调整。
@@ -83,7 +83,7 @@ $null = New-Item -ItemType Directory -Path $dest -Force; Copy-Item -Path "..\jie
 python main.py
 ```
 
-在 Linux 发行版下，可使用 “transformer-linux” 文件夹下的转换程序。该程序仅支持 docx 文档、txt 文件和字幕文件的繁体字形转换，暂不支持doc文档的转换。使用者需部署好 Python 运行环境，然后打开终端，执行以下命令安装依赖并运行：
+在 Linux 发行版下，可使用 “transformer-linux” 文件夹下的转换程序。该程序仅支持 docx 文档、txt 文件、EPUB和字幕文件的繁体字形转换，暂不支持doc文档的转换。使用者需部署好 Python 运行环境，然后打开终端，执行以下命令安装依赖并运行：
 
 ```bash
 git clone https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards.git
