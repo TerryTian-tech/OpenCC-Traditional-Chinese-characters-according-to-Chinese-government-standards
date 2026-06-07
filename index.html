@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>规范繁体字形转换器 | OpenCC Chinese Government Standard</title>
-<meta name="description" content="基于《通用规范汉字表》的文档繁简转换工具,支持 Word、TXT、字幕、EPUB,保留原格式。" />
+<meta name="description" content="基于《通用规范汉字表》的文档繁简转换工具，支持 Word、TXT、字幕、EPUB，保留原格式。" />
 <style>
   :root{
     --paper: #f5f1e8;
@@ -22,7 +22,7 @@
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{background:var(--paper);color:var(--ink);-webkit-font-smoothing:antialiased}
   body{
-    font-family: "Source Han Serif SC","Noto Serif CJK SC","Songti SC","SimSun",ui-serif,Georgia,serif;
+    font-family: "Source Han Serif SC","Songti SC","Noto Serif CJK SC","SimSun",ui-serif,Georgia,serif;
     line-height:1.7;
     font-size:16px;
   }
@@ -45,7 +45,8 @@
   }
   .brand{
     display:flex;align-items:center;gap:10px;
-    font-weight:600;letter-spacing:.02em;
+    font-weight:700;      /* 加粗品牌标识 */
+    letter-spacing:.02em;
     color:var(--ink);
   }
   .brand-mark{
@@ -53,7 +54,7 @@
     background:var(--ink);color:var(--paper);
     display:grid;place-items:center;
     font-family:"Noto Serif CJK SC","Songti SC",serif;
-    font-size:16px;font-weight:700;
+    font-size:16px;font-weight:500;
   }
   .brand small{color:var(--muted);font-weight:400;margin-left:6px;font-size:12px;letter-spacing:.1em}
   nav ul{list-style:none;display:flex;gap:28px;font-size:14px}
@@ -66,7 +67,12 @@
     border-bottom:0;
   }
   .nav-cta:hover{background:var(--vermilion);color:#fff;border-bottom:0}
-
+  /* 繁体字形专用加粗：使用微软雅黑保证粗细和字形一致 */
+  .heavy-han {
+    font-family: 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', sans-serif;
+    font-weight: 600;
+    font-style: normal;
+  }
   /* ============== HERO ============== */
   .hero{
     padding:96px 0 80px;
@@ -92,12 +98,12 @@
   .hero h1{
     font-size:clamp(40px, 6.5vw, 88px);
     line-height:1.05;
-    font-weight:600;
+    font-weight:700;      /* 主标题加粗 */
     letter-spacing:-.02em;
     margin-bottom:24px;
   }
   .hero h1 .accent{color:var(--vermilion)}
-  .hero h1 .quiet{color:var(--muted);font-weight:400}
+  .hero h1 .quiet{color:var(--muted);font-weight:700; }  /* 加粗副色调部分，统一粗体 */
   .hero p.lead{
     max-width:640px;
     font-size:19px;color:var(--ink-soft);
@@ -112,7 +118,7 @@
     padding:36px 0;
     display:grid;grid-template-columns:1fr auto 1fr;gap:32px;align-items:center;
   }
-  .demo-col{font-size:clamp(20px, 2.4vw, 30px);line-height:1.6}
+  .demo-col{font-size:clamp(20px, 2.4vw, 30px);line-height:1.6;font-weight: 500}
   .demo-col .label{
     display:block;
     font-size:11px;letter-spacing:.2em;text-transform:uppercase;
@@ -165,7 +171,8 @@
   }
   .section-head h2{
     font-size:clamp(28px, 4vw, 44px);
-    line-height:1.2;font-weight:600;letter-spacing:-.01em;
+    line-height:1.2;font-weight:700;    /* 二级标题加粗 */
+    letter-spacing:-.01em;
     margin-bottom:16px;
   }
   .section-head p{color:var(--ink-soft);font-size:17px}
@@ -187,7 +194,8 @@
     margin-bottom:20px;display:block;
   }
   .pain-card h3{
-    font-size:20px;font-weight:600;margin-bottom:12px;line-height:1.4;
+    font-size:20px;font-weight:700;    /* 加粗卡片标题 */
+    margin-bottom:12px;line-height:1.4;
   }
   .pain-card p{color:var(--ink-soft);font-size:15px}
 
@@ -213,7 +221,10 @@
     color:var(--vermilion);
   }
   .feature .ico svg{width:22px;height:22px}
-  .feature h3{font-size:20px;font-weight:600;margin-bottom:8px}
+  .feature h3{
+    font-size:20px;font-weight:700;    /* 加粗特性标题 */
+    margin-bottom:8px
+  }
   .feature p{color:var(--ink-soft);font-size:15px}
 
   /* ============== MODES ============== */
@@ -232,7 +243,10 @@
     font-size:24px;color:var(--vermilion);margin-bottom:16px;
     display:block;letter-spacing:.05em;
   }
-  .mode h4{font-size:18px;font-weight:600;margin-bottom:6px}
+  .mode h4{
+    font-size:18px;font-weight:700;    /* 加粗模式小标题 */
+    margin-bottom:6px
+  }
   .mode p{font-size:14px;color:var(--ink-soft)}
 
   /* ============== FORMATS ============== */
@@ -264,7 +278,10 @@
     color:var(--jade);font-weight:600;margin-bottom:12px;
     font-family: ui-sans-serif, system-ui, sans-serif;
   }
-  .enhanced-item h3{font-size:26px;font-weight:600;margin-bottom:16px;line-height:1.3}
+  .enhanced-item h3{
+    font-size:26px;font-weight:700;    /* 加粗增强标题 */
+    margin-bottom:16px;line-height:1.3
+  }
   .enhanced-item p{color:var(--ink-soft);font-size:16px;margin-bottom:20px}
   .enhanced-item ul{list-style:none;padding:0;margin:0}
   .enhanced-item li{
@@ -296,7 +313,9 @@
     display:grid;place-items:center;background:var(--paper-2);
   }
   .platform-head .os svg{width:20px;height:20px;color:var(--ink)}
-  .platform-head h3{font-size:20px;font-weight:600}
+  .platform-head h3{
+    font-size:20px;font-weight:700;    /* 加粗平台标题 */
+  }
   .platform p{color:var(--ink-soft);font-size:15px;margin-bottom:20px}
   .platform .ext-list{
     display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px;
@@ -344,7 +363,10 @@
     font-family: ui-sans-serif, system-ui, sans-serif;
   }
   .dl-card .ext{font-size:12px;color:rgba(245,241,232,.5)}
-  .dl-card h3{font-size:22px;font-weight:600;margin-bottom:6px}
+  .dl-card h3{
+    font-size:22px;font-weight:700;    /* 加粗下载卡片标题 */
+    margin-bottom:6px
+  }
   .dl-card p{font-size:14px;color:rgba(245,241,232,.65);margin-bottom:20px}
   .dl-card .dl-btn{
     display:inline-flex;align-items:center;gap:8px;
@@ -381,7 +403,50 @@
   .foot-links a:hover{color:#fff}
   .foot-copy{color:rgba(245,241,232,.35);font-size:13px}
 
-  /* ============== RESPONSIVE ============== */
+  /* ============== 全局标题加粗统一保障 (移动端+PC 全部加粗) ============== */
+  /* 保障所有标题元素及类似标题的模块在任何分辨率下均为粗体 */
+  h1, h2, h3, h4, h5,
+  .hero h1,
+  .hero h1 .quiet,
+  .hero h1 .accent,
+  .section-head h2,
+  .pain-card h3,
+  .feature h3,
+  .mode h4,
+  .platform-head h3,
+  .dl-card h3,
+  .enhanced-item h3,
+  .brand,
+  .section-head h2,
+  .download .section-head h2 {
+    font-weight: 700 !important;   /* 强力加粗，覆盖任何细体默认值 */
+  }
+  /* 品牌下方的辅助小字保持正常字重，不干扰粗体风格 */
+  .brand small {
+    font-weight: 400 !important;
+  }
+  /* 确保卡片内的标题不会意外被覆盖为normal */
+  .pain-card h3,
+  .feature h3,
+  .mode h4,
+  .platform-head h3,
+  .dl-card h3,
+  .enhanced-item h3 {
+    font-weight: 700 !important;
+  }
+  /* 模式卡片箭头处不需加粗，保留原有视觉 */
+  .mode .arrow {
+    font-weight: normal;
+  }
+  /* 针对移动端的强化，确保所有标题在手机屏幕上也表现为粗体 */
+  @media (max-width: 860px) {
+    h1, h2, h3, h4, .hero h1, .section-head h2, .pain-card h3, .feature h3, .mode h4, 
+    .platform-head h3, .dl-card h3, .enhanced-item h3, .brand, .hero h1 .quiet, .hero h1 .accent {
+      font-weight: 700 !important;
+    }
+  }
+
+  /* ============== 响应式布局其余部分 (粗细不受影响) ============== */
   @media (max-width: 860px){
     .pain{grid-template-columns:1fr}
     .features{grid-template-columns:1fr}
@@ -411,7 +476,7 @@
   <div class="wrap nav-inner">
     <a href="#" class="brand" style="border-bottom:0">
       <span class="brand-mark">陆</span>
-      <span>规范繁体<small>基于《通用规范汉字表》附件1</small></span>
+      <span>规范繁体<small>基于《通规》附件1</small></span>
     </a>
     <nav>
       <ul>
@@ -431,15 +496,15 @@
 <!-- ============ HERO ============ -->
 <section class="hero" style="border-top:0">
   <div class="wrap" style="position:relative">
-    <span class="hero-eyebrow">基于《通用规范汉字表》附件1和OpenCC转换引擎</span>
+    <span class="hero-eyebrow">基于《通用规范汉字表》附件1《规范字与繁体字、异体字对照表》</span>
     <h1>
       文档繁简转换<br/>
       按<span class="accent">《通规》</span>来<br/>
-      <span class="quiet">而不是按Word来。</span>
+      <span class="quiet">而不是按Word来</span>
     </h1>
     <p class="lead">
-      一款面向出版编辑、字幕与电子书制作场景的本地化繁简转换工具。
-      字形标准、保留原格式、按词转换、可校对 —— 把 Word 繁简转换的 “水土不服” 一次解决。
+      一款面向出版编辑、字幕与电子书制作场景的本地化繁简转换工具。<br>
+      字形标准、保留原格式、按字转换、可校对——把Word繁简转换的“水土不服”一次解决。
     </p>
 
     <!-- 字形对比 -->
@@ -487,24 +552,24 @@
   <div class="wrap">
     <div class="section-head">
       <span class="kicker">为什么需要</span>
-      <h2>Word的繁简转换,<br/>并不"标准"。</h2>
-      <p>市面上的转换工具,要么字形标准混乱,要么格式保留不到位。本工具存在的全部理由,就是把这两件事一起做对。</p>
+      <h2>Word的繁简转换，<br/>并不“标准”</h2>
+      <p>市面上的转换工具，要么字形标准混乱，要么格式保留不到位。本工具存在的全部理由，就是把这两件事一起做对。</p>
     </div>
     <div class="pain">
       <div class="pain-card">
         <span class="num">01 / 字形</span>
         <h3>Word杂糅非标准港台字形</h3>
-        <p>Word自带繁简转换并不严格依据《通用规范汉字表》附件1,转换结果常混入港台地区的非标准字形,出版场景下不可用。</p>
+        <p>Word自带繁简转换并不严格依据《通用规范汉字表》附件1，转换结果常混入港台地区的非标准字形，出版场景下不可用。</p>
       </div>
       <div class="pain-card">
         <span class="num">02 / 分词</span>
         <h3>按词转换易造成新错误</h3>
-        <p>多数转换工具按字转换,缺乏分词处理能力,产生大量"看似对、实际错"的结果,审校成本反而更高。</p>
+        <p>多数转换工具按词转换，缺乏分词处理能力，产生大量“看似对、实际错”的结果，审校成本反而更高。</p>
       </div>
       <div class="pain-card">
         <span class="num">03 / 格式</span>
         <h3>第三方工具丢失Word文档排版</h3>
-        <p>不少繁简转换工具在处理Word文档时会改变原始格式 —— 字体、样式、表格、图片都可能走样,等于二次返工。</p>
+        <p>不少繁简转换工具在处理Word文档时会改变原始格式——字体、样式、表格、图片都可能走样，等于二次返工。</p>
       </div>
     </div>
   </div>
@@ -515,8 +580,8 @@
   <div class="wrap">
     <div class="section-head">
       <span class="kicker">核心特性</span>
-      <h2>为出版与编辑场景设计。</h2>
-      <p>每一项特性都对应一个真实的痛点 —— 不做花活，只解决转换这件事。</p>
+      <h2>为出版与编辑场景设计</h2>
+      <p>每一项特性都对应一个真实的痛点——不做花活，只解决转换这件事。</p>
     </div>
     <div class="features">
       <div class="feature">
@@ -531,7 +596,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
         </div>
         <h3>Word原生保留排版</h3>
-        <p>Word文档(DOC/DOCX)转换后，字体、样式、表格、图片等原有格式完整保留，效果与Word内置的繁简转换一致。配合Word的"比较"功能可自动标出所有变动,便于审校。</p>
+        <p>Word文档（DOC/DOCX）转换后，字体、样式、表格、图片等原有格式完整保留，效果与Word内置的繁简转换一致。配合Word的“比较”功能可自动标出所有变动，便于审校。</p>
       </div>
       <div class="feature">
         <div class="ico">
@@ -545,7 +610,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
         </div>
         <h3>转换前分词提高正确率</h3>
-        <p>集成结巴分词(现代汉语 + 古汉语)，针对一对多转换设计词组转换逻辑，大幅提升准确率。</p>
+        <p>集成结巴分词（现代汉语 + 古汉语），针对一对多转换设计词组转换逻辑，大幅提升准确率。</p>
       </div>
     </div>
   </div>
@@ -556,23 +621,23 @@
   <div class="wrap">
     <div class="section-head">
       <span class="kicker">四种转换模式</span>
-      <h2>总有一种适合你的稿件。</h2>
+      <h2>总有一种适合你的稿件</h2>
     </div>
     <div class="modes">
       <div class="mode">
         <span class="arrow">简 → 陆</span>
-        <h4>简体转陆标繁体</h4>
+        <h4>简体转《通规》繁体</h4>
         <p>把简体稿件转换为符合《通用规范汉字表》的规范繁体字形。</p>
       </div>
       <div class="mode">
         <span class="arrow">陆 → 简</span>
-        <h4>陆标繁体转简体</h4>
-        <p>把陆标规范繁体稿件还原为简体，字形准确、不丢格式。</p>
+        <h4>《通规》繁体转简体</h4>
+        <p>把《通规》规范繁体稿件还原为简体，字形准确、不丢格式。</p>
       </div>
       <div class="mode">
         <span class="arrow">港/台 → 陆</span>
-        <h4>港台繁体转陆标</h4>
-        <p>将港台标准或旧字形混杂的"繁体"，统一为陆标规范繁体。</p>
+        <h4>港台繁转《通规》繁</h4>
+        <p>将港台标准或旧字形混杂的“繁体”，统一为《通规》规范繁体。</p>
       </div>
       <div class="mode">
         <span class="arrow">旧 → 新</span>
@@ -588,7 +653,7 @@
   <div class="wrap">
     <div class="section-head">
       <span class="kicker">支持的文件类型</span>
-      <h2>覆盖主流文档与媒体格式。</h2>
+      <h2>覆盖主流文档与媒体格式</h2>
     </div>
     <div class="formats">
       <div class="format">
@@ -620,7 +685,7 @@
   <div class="wrap">
     <div class="section-head">
       <span class="kicker">可选增强功能</span>
-      <h2>对症下药的进阶选项。</h2>
+      <h2>对症下药的进阶选项</h2>
       <p>针对转换中的疑难问题，提供可选的增强开关，默认关闭，需要时一键启用。</p>
     </div>
     <div class="enhanced">
@@ -630,7 +695,7 @@
         <p>开启后，程序先对待转换文本做分词处理，显著提升转换准确率。分词增强完成后，文件仍维持原格式不变。</p>
         <ul>
           <li>现代汉语 + 古汉语 双模式支持</li>
-          <li>分词结果不修改原文件,只用于转换决策</li>
+          <li>分词结果不修改原文件，只用于转换决策</li>
           <li>尤其适合长篇Word稿件与电子书</li>
         </ul>
       </div>
@@ -640,7 +705,7 @@
         <p>针对非 UTF-8 编码的TXT文件，允许用户指定一种编码进行解码，避免转换后出现乱码。</p>
         <ul>
           <li>支持 GBK/GB18030/Big5/UTF-8 等</li>
-          <li>解码后正常进入转换流程,结果统一为 UTF-8</li>
+          <li>解码后正常进入转换流程，结果统一为 UTF-8</li>
           <li>对历史存档的字幕、TXT资料尤其有用</li>
         </ul>
       </div>
@@ -653,8 +718,8 @@
   <div class="wrap">
     <div class="section-head">
       <span class="kicker">平台支持</span>
-      <h2>Windows 与 Linux 双端覆盖。</h2>
-      <p>提供开箱即用的安装包,无需自行配置Python环境。</p>
+      <h2>Windows 与 Linux 双端覆盖</h2>
+      <p>提供开箱即用的安装包，无需自行配置Python环境。</p>
     </div>
     <div class="platforms">
       <div class="platform">
@@ -664,7 +729,7 @@
           </div>
           <h3>Windows</h3>
         </div>
-        <p>提供编译好的安装包,支持 Windows 10 / Windows 11,同时为 Windows 7 用户提供独立编译版本。下载后双击安装即可使用。</p>
+        <p>提供编译好的安装包，支持 Windows 10 / Windows 11，同时为 Windows 7 用户提供独立编译版本。下载后双击安装即可使用。</p>
         <div class="ext-list">
           <span>EXE 安装包</span><span>Win10/11 &amp; Win7 双版本</span><span>原生 DOC 支持</span>
         </div>
@@ -676,7 +741,7 @@
           </div>
           <h3>Ubuntu / Linux Mint</h3>
         </div>
-        <p>提供 deb 格式安装包,主流 Linux 桌面发行版可直接安装。Linux 版当前支持 DOCX、TXT、EPUB与字幕文件。</p>
+        <p>提供 deb 格式安装包，主流 Linux 桌面发行版可直接安装。Linux 版当前支持 DOCX、TXT、EPUB与字幕文件。</p>
         <div class="ext-list">
           <span>DEB 安装包</span><span>DOCX/TXT/EPUB/字幕</span><span>Ubuntu/Linux Mint桌面</span>
         </div>
@@ -690,7 +755,7 @@
   <div class="wrap">
     <div class="section-head">
       <span class="kicker">立即下载</span>
-      <h2>挑一个适合你的版本，<br/>马上开始转换。</h2>
+      <h2>挑一个适合你的版本，<br/>马上开始转换</h2>
       <p>推荐直接下载安装包，免配置、免折腾；喜欢折腾的也可以从源码自行部署。</p>
     </div>
 
@@ -701,7 +766,7 @@
           <span class="ext">.exe · v1.3.7</span>
         </div>
         <h3>Windows 安装包</h3>
-        <p>主推版本,包含完整图形界面与全部依赖,开箱即用。</p>
+        <p>主推版本，包含完整图形界面与全部依赖，开箱即用。</p>
         <span class="dl-btn">
           下载 .exe
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
@@ -725,7 +790,7 @@
           <span class="ext">.deb · v1.3.7</span>
         </div>
         <h3>Ubuntu / Mint 安装包</h3>
-        <p>deb 格式,适配主流 Linux 桌面发行版,支持 DOCX、TXT、EPUB 与字幕文件。</p>
+        <p>deb 格式,适配主流 Linux 桌面发行版，支持 DOCX、TXT、EPUB 与字幕文件。</p>
         <span class="dl-btn">
           下载 .deb
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
