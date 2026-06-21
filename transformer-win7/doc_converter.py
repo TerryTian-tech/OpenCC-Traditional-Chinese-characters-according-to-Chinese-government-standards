@@ -631,9 +631,3 @@ def convert_docx_file(input_path, output_folder, conversion_type, preserve_forma
     except Exception as e:
         log(f"处理 {input_path} 时出错: {str(e)}")
         return False
-    finally:
-        if converter is not None:
-            try:
-                converter.cc.close()
-            except Exception:
-                pass

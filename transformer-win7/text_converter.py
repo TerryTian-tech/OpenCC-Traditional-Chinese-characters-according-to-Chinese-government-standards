@@ -303,8 +303,6 @@ def convert_srt_file(input_path, output_folder, conversion_type, log_callback=No
     except Exception as e:
         log(f"处理SRT字幕文件 {input_path} 时出错: {str(e)}")
         return False
-    finally:
-        cc.close()
 
 
 def _convert_srt_text_with_tags(cc, text):
@@ -452,8 +450,6 @@ def convert_ass_file(input_path, output_folder, conversion_type, log_callback=No
     except Exception as e:
         log(f"处理ASS/SSA字幕文件 {input_path} 时出错: {str(e)}")
         return False
-    finally:
-        cc.close()
 
 
 def _convert_ass_dialogue_line(cc, line):
@@ -634,8 +630,6 @@ def convert_lrc_file(input_path, output_folder, conversion_type, log_callback=No
     except Exception as e:
         log(f"处理LRC歌词文件 {input_path} 时出错: {str(e)}")
         return False
-    finally:
-        cc.close()
 
 
 def _convert_lrc_lyric_text(cc, text):
@@ -753,5 +747,3 @@ def convert_txt_file(input_path, output_folder, conversion_type, log_callback=No
     except Exception as e:
         log(f"处理txt文件 {input_path} 时出错: {str(e)}")
         return False
-    finally:
-        cc.close()
