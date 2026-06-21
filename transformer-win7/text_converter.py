@@ -2,7 +2,7 @@ import os
 import re
 import chardet
 
-from opencc_wrapper import OpenCC
+from opencc_python import OpenCC
 
 def detect_encoding(file_path, log_callback=None, force_encoding=None):
     """检测文件编码，特别处理中文ANSI编码
