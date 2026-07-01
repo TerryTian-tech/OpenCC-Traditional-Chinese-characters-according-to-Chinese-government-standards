@@ -1,5 +1,8 @@
 {
   "name": "Traditional Chinese to Traditional Chinese (Chinese Government standard)",
+  "normalization": [
+    { "dict": { "type": "text", "file": "CJK_Compatibility_Ideographs.txt" } }
+  ],
   "segmentation": {
     "type": "jieba",
     "resources": {
@@ -8,16 +11,16 @@
       "user_dict_path": "jieba_dict/user.dict.traditional.utf8"
     }
   },
-  "conversion_chain": [{
-    "dict": {
-      "type": "group",
-      "dicts": [{
-        "type": "text",
-        "file": "TGPhrases.txt"
-      }, {
-        "type": "text",
-        "file": "TGCharacters.txt"
-      }]
+  "conversion_chain": [
+    {
+      "dict": {
+        "type": "group",
+        "match_policy": "short_circuit",
+        "dicts": [
+          { "type": "text", "file": "TGPhrases.txt" },
+          { "type": "text", "file": "TGCharacters.txt" }
+        ]
+      }
     }
-  }]
+  ]
 }
