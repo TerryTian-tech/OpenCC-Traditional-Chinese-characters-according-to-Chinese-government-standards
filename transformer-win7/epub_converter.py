@@ -3,7 +3,7 @@ import re
 import ebooklib
 from ebooklib import epub
 from typing import Callable, Optional, Union
-from opencc_python import OpenCC
+from opencc import OpenCC
 from bs4 import BeautifulSoup, NavigableString
 from bs4.formatter import XMLFormatter
 import chardet

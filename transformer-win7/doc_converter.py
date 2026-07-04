@@ -8,7 +8,7 @@ import win32com.client as win32
 import pythoncom
 
 from docx import Document
-from opencc_python import OpenCC
+from opencc import OpenCC
 from docx.shared import Pt, RGBColor
 
 from text_converter import detect_encoding, safe_read_file

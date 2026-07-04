@@ -14,6 +14,7 @@ from updater import UpdateChecker
 from text_converter import convert_txt_file, convert_srt_file, convert_ass_file, convert_lrc_file
 from doc_converter import convert_docx_file, convert_doc_to_docx
 from epub_converter import convert_epub_file
+import jieba
 
 class ConversionWorker(QThread):
     """
