@@ -794,6 +794,15 @@ class ModernUI(QMainWindow):
             QPushButton#startButton:hover {
                 background-color: #00e6ac;
             }
+            QPushButton#aiButton {
+                background-color: #64b5f6;
+                font-weight: bold;
+                padding: 12px;
+                font-size: 16px;
+            }
+            QPushButton#aiButton:hover {
+                background-color: #90caf9;
+            }
             QPushButton#browseButton {
                 background-color: #3498db;
             }
@@ -945,6 +954,15 @@ class ModernUI(QMainWindow):
             }
             QPushButton#startButton:hover {
                 background-color: #66bb6a;
+            }
+            QPushButton#aiButton {
+                background-color: #64b5f6;
+                font-weight: bold;
+                padding: 12px;
+                font-size: 16px;
+            }
+            QPushButton#aiButton:hover {
+                background-color: #90caf9;
             }
             QPushButton#browseButton {
                 background-color: #2196f3;
@@ -1158,6 +1176,11 @@ class ModernUI(QMainWindow):
         self.start_button.clicked.connect(self.start_conversion)
         control_layout.addWidget(self.start_button)
 
+        self.ai_button = QPushButton("AI转换")
+        self.ai_button.setObjectName("aiButton")
+        self.ai_button.clicked.connect(self.ai_conversion)
+        control_layout.addWidget(self.ai_button)
+
         self.cancel_button = QPushButton("取消")
         self.cancel_button.setObjectName("cancelButton")
         self.cancel_button.setEnabled(False)  # 初始状态不可用
@@ -1309,6 +1332,24 @@ class ModernUI(QMainWindow):
         if path:
             self.output_edit.setText(path)
 
+    def ai_conversion(self):
+        """AI转换：自动搜索当前目录下的LLMCC可执行文件并启动"""
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        exe_name = "LLMCC.exe" if sys.platform == "win32" else "LLMCC"
+        llmcc_path = os.path.join(current_dir, "LLMCC", exe_name)
+
+        if os.path.exists(llmcc_path):
+            try:
+                subprocess.Popen([llmcc_path])
+                self.append_log(f"已启动AI转换工具: {llmcc_path}")
+                self.statusBar().showMessage("AI转换工具已启动")
+            except Exception as e:
+                QMessageBox.critical(self, "错误", f"启动AI转换工具失败:\n{str(e)}")
+                self.append_log(f"启动AI转换工具失败: {str(e)}")
+        else:
+            QMessageBox.warning(self, "未找到", f"未找到AI转换工具:\n{llmcc_path}\n\n请确保LLMCC文件夹及{exe_name}存在于程序目录下。")
+            self.append_log(f"未找到AI转换工具: {llmcc_path}")
+            
     def start_conversion(self):
         """开始转换"""
         input_path = self.input_edit.text()
