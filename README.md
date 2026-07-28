@@ -128,6 +128,20 @@ python3 main.py
 
 * [Mainland_Traditional_Chinese_Converter](https://github.com/Xebec33/Mainland_Traditional_Chinese_Converter)  维护者：[Xebec33](https://github.com/Xebec33)
 
+## 「规范繁体字形转换器」使用的第三方库
+
+| 组件 | 版本 | 说明 |
+|-----|------|-----|
+| [OpenCC](https://github.com/BYVoid/OpenCC) | 1.4.1 | 开源中文繁简转换库 |
+| [LLMCC](https://github.com/TerryTian-tech/LLMCC) | 0.2.3 | 「规范繁体字形转换器」AI繁简转换独立模块 |
+| [Python-docx](https://github.com/python-openxml/python-docx) | 1.2.0 | Word 文档处理库 |
+| [Pywin32](https://github.com/mhammond/pywin32) | 312 | Python for Win32 扩展 |
+| [PySide6](https://www.qt.io/qt-for-python) | 6.11.1 | Qt for Python GUI 框架 |
+| [Chardet](https://github.com/chardet/chardet) | 7.4.3 | 字符编码检测库 |
+| [Certifi](https://pypi.org/project/certifi/) | 2026.6.17 | Mozilla 根证书库 |
+| [Beautifulsoup4](https://pypi.org/project/beautifulsoup4/) | 4.15.0 | HTML和XML文档解析库 |
+| [lxml](https://github.com/lxml/lxml) | 6.1.1 | 大型文档和XML处理库 |
+
 ## Contributors 开源贡献者
 
 由于本仓库同时在 [Gitee](https://gitee.com/terrytian-tech/tonggui-traditional-chinese) 和 [GitCode](https://gitcode.com/TerryTian-tech/OpenCC-Tonggui-Traditional-Chinese) 平台托管，特此将所有平台的开源贡献者列表如下：
