@@ -135,7 +135,7 @@ python3 main.py
 | 组件 | 版本 | 说明 |
 |-----|------|-----|
 | [OpenCC](https://github.com/BYVoid/OpenCC) | 1.4.1 | 开源中文繁简转换库 |
-| [LLMCC](https://github.com/TerryTian-tech/LLMCC) | 0.2.3 | 「规范繁体字形转换器」AI繁简转换独立模块 |
+| [LLMCC](https://github.com/TerryTian-tech/LLMCC) | 0.2.4 | 「规范繁体字形转换器」AI繁简转换独立模块 |
 | [Python-docx](https://github.com/python-openxml/python-docx) | 1.2.0 | Word 文档处理库 |
 | [Pywin32](https://github.com/mhammond/pywin32) | 312 | Python for Win32 扩展 |
 | [PySide6](https://www.qt.io/qt-for-python) | 6.11.1 | Qt for Python GUI 框架 |
