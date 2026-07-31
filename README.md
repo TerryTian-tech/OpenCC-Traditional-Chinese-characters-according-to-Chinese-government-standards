@@ -98,9 +98,11 @@ python main.py
 git clone https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards.git
 cd OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/transformer-linux
 pip install -r requirements.txt
-cp -rf ../t2gov/* "$(python3 -c "import opencc, os; print(os.path.join(os.path.dirname(opencc.__file__), 'clib', 'share', 'opencc'))")"
-DEST="$(python3 -c "import opencc, os; print(os.path.join(os.path.dirname(opencc.__file__), 'clib', 'share', 'opencc', 'jieba_dict'))")"
-mkdir -p "$DEST" && cp -rf ../jieba/* "$DEST"
+OPENCC_DATA_ROOT=$(python3 -c "import opencc_data, os; print(os.path.dirname(opencc_data.__file__))")
+cp ../t2gov/*.txt "$OPENCC_DATA_ROOT/data/"
+cp ../t2gov/*.json "$OPENCC_DATA_ROOT/data/config/"
+mkdir -p jieba_dict
+cp -rf ../jieba/* jieba_dict/
 python3 main.py
 ```
 
