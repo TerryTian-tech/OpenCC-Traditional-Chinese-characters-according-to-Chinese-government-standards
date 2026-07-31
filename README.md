@@ -140,7 +140,7 @@ python3 main.py
 | [Pywin32](https://github.com/mhammond/pywin32) | 312 | Python for Win32 扩展 |
 | [PySide6](https://www.qt.io/qt-for-python) | 6.11.1 | Qt for Python GUI 框架 |
 | [Chardet](https://github.com/chardet/chardet) | 7.4.3 | 字符编码检测库 |
-| [Certifi](https://pypi.org/project/certifi/) | 2026.6.17 | Mozilla 根证书库 |
+| [Certifi](https://pypi.org/project/certifi/) | 2026.7.22 | Mozilla 根证书库 |
 | [Beautifulsoup4](https://pypi.org/project/beautifulsoup4/) | 4.15.0 | HTML和XML文档解析库 |
 | [lxml](https://github.com/lxml/lxml) | 6.1.1 | 大型文档和XML处理库 |
 
