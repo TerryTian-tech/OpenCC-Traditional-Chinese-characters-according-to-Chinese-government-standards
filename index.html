@@ -1,825 +1,3197 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>规范繁体字形转换器 | OpenCC Chinese Government Standard</title>
-<meta name="description" content="基于《通用规范汉字表》的文档繁简转换工具，支持 Word、TXT、字幕、EPUB，保留原格式。" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>规范繁体字形转换器 · 水墨版</title>
+<meta name="description" content="基于 OpenCC 引擎，将港/台标准及各种旧字形混杂的繁体文本，转换为《通用规范汉字表》（2013）规范繁体字形。支持 Word、TXT、EPUB、字幕文件，Windows / Linux 全平台。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;600;700;900&display=swap" rel="stylesheet">
 <style>
-  :root{
-    --paper: #f5f1e8;
-    --paper-2: #ede7d8;
-    --ink: #1a1a1a;
-    --ink-soft: #4a4a4a;
-    --muted: #8a8576;
-    --line: #d9d2c0;
-    --vermilion: #a8322a;
-    --vermilion-2: #c04851;
-    --jade: #2d5a4f;
-    --max: 1120px;
-  }
+:root{
+  --paper:#f8f7f3;
+  --paper-2:#f1efe9;
+  --ink:#191c20;
+  --ink-2:#3a3f46;
+  --ink-3:#6d747c;
+  --ink-4:#a8aeb4;
+  --hair:rgba(25,28,32,.12);
+  --seal:#bf3a2b;
+  --serif:"Noto Serif SC","Source Han Serif SC","Songti SC","STSong","SimSun",serif;
+  --brush:"Ma Shan Zheng","Xingkai SC","STXingkai","Kaiti SC","STKaiti","KaiTi","Noto Serif SC",serif;
+  --kai:"Kaiti SC","STKaiti","KaiTi","Noto Serif SC",serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  font-family:var(--serif);
+  background:var(--paper);
+  color:var(--ink);
+  line-height:1.8;
+  overflow-x:hidden;
+}
+::selection{background:var(--ink);color:var(--paper)}
+a{color:var(--ink-2);text-decoration:none;border-bottom:1px solid rgba(25,28,32,.3)}
+a:hover{color:var(--ink);border-bottom-color:var(--ink)}
+img{max-width:100%}
 
-  *{box-sizing:border-box;margin:0;padding:0}
-  html,body{background:var(--paper);color:var(--ink);-webkit-font-smoothing:antialiased}
-  body{
-    font-family: "Microsoft YaHei","Source Han Serif SC","Songti SC","Noto Serif CJK SC","SimSun",ui-serif,Georgia,serif;
-    line-height:1.7;
-    font-size:16px;
-  }
-  a{color:var(--vermilion);text-decoration:none;border-bottom:1px solid transparent;transition:border-color .2s}
-  a:hover{border-bottom-color:var(--vermilion)}
+/* 全局墨点颗粒 */
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.6;
+  background-image:radial-gradient(rgba(25,28,32,.05) 1px,transparent 1.4px);
+  background-size:30px 30px;
+}
 
-  .wrap{max-width:var(--max);margin:0 auto;padding:0 32px}
+.wrap{max-width:1120px;margin:0 auto;padding:0 28px;position:relative;z-index:2}
 
-  /* ============== TOP NAV ============== */
-  header.nav{
-    position:sticky;top:0;z-index:50;
-    background:rgba(245,241,232,.85);
-    backdrop-filter:saturate(180%) blur(10px);
-    -webkit-backdrop-filter:saturate(180%) blur(10px);
-    border-bottom:1px solid var(--line);
-  }
-  .nav-inner{
-    display:flex;align-items:center;justify-content:space-between;
-    height:64px;
-  }
-  .brand{
-    display:flex;align-items:center;gap:10px;
-    font-weight:700;      /* 加粗品牌标识 */
-    letter-spacing:.02em;
-    color:var(--ink);
-  }
-  .brand-mark{
-    width:28px;height:28px;border-radius:4px;
-    background:var(--ink);color:var(--paper);
-    display:grid;place-items:center;
-    font-family:"Noto Serif CJK SC","Songti SC",serif;
-    font-size:16px;font-weight:500;
-  }
-  .brand small{color:var(--muted);font-weight:400;margin-left:6px;font-size:12px;letter-spacing:.1em}
-  nav ul{list-style:none;display:flex;gap:28px;font-size:14px}
-  nav a{color:var(--ink-soft)}
-  nav a:hover{color:var(--vermilion);border-bottom-color:transparent}
-  .nav-cta{
-    display:inline-flex;align-items:center;gap:6px;
-    background:var(--ink);color:var(--paper);
-    padding:8px 16px;border-radius:4px;font-size:14px;
-    border-bottom:0;
-  }
-  .nav-cta:hover{background:var(--vermilion);color:#fff;border-bottom:0}
-  /* ============== HERO ============== */
-  .hero{
-    padding:96px 0 80px;
-    position:relative;
-    overflow:hidden;
-  }
-  .hero::before{
-    content:"";position:absolute;inset:0;
-    background:
-      radial-gradient(ellipse at 90% -10%, rgba(168,50,42,.06), transparent 50%),
-      radial-gradient(ellipse at -10% 110%, rgba(45,90,79,.05), transparent 50%);
-    pointer-events:none;
-  }
-  .hero-eyebrow{
-    display:inline-flex;align-items:center;gap:8px;
-    font-size:12px;letter-spacing:.2em;text-transform:uppercase;
-    color:var(--vermilion);margin-bottom:24px;
-    font-family: ui-sans-serif, system-ui, -apple-system, "PingFang SC","Microsoft YaHei",sans-serif;
-  }
-  .hero-eyebrow::before{
-    content:"";width:24px;height:1px;background:var(--vermilion);
-  }
-  .hero h1{
-    font-size:clamp(40px, 6.5vw, 88px);
-    line-height:1.05;
-    font-weight:700;      /* 主标题加粗 */
-    letter-spacing:-.02em;
-    margin-bottom:24px;
-  }
-  .hero h1 .accent{color:var(--vermilion)}
-  .hero h1 .quiet{color:var(--muted);font-weight:700; }  /* 加粗副色调部分，统一粗体 */
-  .hero p.lead{
-    max-width:640px;
-    font-size:19px;color:var(--ink-soft);
-    margin-bottom:48px;
-  }
+/* ============ 墨迹工具 ============ */
+.ink-blob{
+  position:absolute;border-radius:47% 53% 58% 42%/52% 44% 56% 48%;
+  background:radial-gradient(circle at 38% 34%,rgba(25,28,32,.16),rgba(25,28,32,.05) 55%,transparent 72%);
+  filter:blur(14px);mix-blend-mode:multiply;pointer-events:none;
+}
+.brush-line{display:block;width:120px;height:14px;margin:20px auto 0;filter:url(#inkRough)}
+.brush-line path{stroke:var(--ink);stroke-width:5;stroke-linecap:round;fill:none;opacity:.85}
+.brush-line .thin{stroke-width:2;opacity:.4}
 
-  /* 转换对比展示 */
-  .demo{
-    margin:48px 0 56px;
-    border-top:1px solid var(--line);
-    border-bottom:1px solid var(--line);
-    padding:36px 0;
-    display:grid;grid-template-columns:1fr auto 1fr;gap:32px;align-items:center;
-  }
-  .demo-col{font-size:clamp(20px, 2.4vw, 30px);line-height:1.6;font-weight: 500}
-  .demo-col .label{
-    display:block;
-    font-size:11px;letter-spacing:.2em;text-transform:uppercase;
-    color:var(--muted);margin-bottom:16px;
-    font-family: ui-sans-serif, system-ui, sans-serif;
-  }
-  .demo-col.from{color:var(--ink-soft)}
-  .demo-col.to{color:var(--ink)}
-  .demo-col .hl{color:var(--vermilion)}
-  .demo-arrow{
-    font-size:24px;color:var(--muted);
-    display:grid;place-items:center;
-  }
-  .demo-arrow svg{width:40px;height:40px;stroke:var(--ink)}
+/* ============ 导航 ============ */
+nav{
+  position:fixed;top:0;left:0;right:0;z-index:50;
+  transition:background .4s,border-color .4s;border-bottom:1px solid transparent;
+}
+nav.scrolled{
+  background:rgba(248,247,243,.9);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--hair);
+}
+.nav-inner{max-width:1120px;margin:0 auto;padding:0 28px;height:70px;display:flex;align-items:center;justify-content:space-between}
+.brand{display:flex;align-items:center;gap:12px;font-weight:700;font-size:17px;letter-spacing:.08em;color:var(--ink);border:none}
+.brand:hover{border:none}
+.seal{
+  width:38px;height:38px;flex:none;background:var(--seal);color:#fff;
+  display:grid;place-items:center;font-size:14px;line-height:1.15;font-family:var(--brush);
+  border-radius:6px;transform:rotate(-4deg);filter:url(#inkRough);
+  box-shadow:0 2px 10px rgba(191,58,43,.3);letter-spacing:0;
+}
+.nav-links{display:flex;gap:32px;font-size:15px}
+.nav-links a{color:var(--ink-3);border:none;position:relative;padding:4px 2px;transition:color .3s}
+.nav-links a::after{
+  content:"";position:absolute;left:50%;bottom:-2px;width:0;height:2px;background:var(--ink);
+  transition:.35s;transform:translateX(-50%);border-radius:2px;
+}
+.nav-links a:hover{color:var(--ink)}
+.nav-links a:hover::after{width:100%}
+.nav-cta{
+  font-size:14px;padding:9px 22px;color:var(--paper);background:var(--ink);border:none;
+  border-radius:44% 56% 52% 48%/58% 48% 52% 42%;transition:.3s;letter-spacing:.06em;
+}
+.nav-cta:hover{background:var(--ink-2);color:var(--paper);border-radius:52% 48% 44% 56%/46% 56% 44% 54%}
+@media(max-width:880px){.nav-links{display:none}}
 
-  .hero-actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
-  .btn{
-    display:inline-flex;align-items:center;gap:8px;
-    padding:14px 24px;border-radius:4px;
-    font-size:15px;font-weight:500;
-    border:1px solid transparent;
-    transition:all .2s;
-    cursor:pointer;
-    font-family: inherit;
-  }
-  .btn-primary{background:var(--ink);color:var(--paper);border-color:var(--ink)}
-  .btn-primary:hover{background:var(--vermilion);border-color:var(--vermilion);color:#fff}
-  .btn-ghost{background:transparent;color:var(--ink);border-color:var(--ink)}
-  .btn-ghost:hover{background:var(--ink);color:var(--paper)}
-  .btn svg{width:16px;height:16px}
+/* ============ 首屏 ============ */
+header{
+  min-height:100vh;display:flex;align-items:center;justify-content:center;
+  position:relative;padding:130px 0 110px;text-align:center;overflow:hidden;
+}
+.mts{
+  position:absolute;left:0;right:0;bottom:-4px;width:100%;height:30vh;min-height:220px;
+  pointer-events:none;z-index:0;
+}
+.cloud{
+  position:absolute;border-radius:50%;filter:blur(26px);pointer-events:none;
+  background:radial-gradient(circle,rgba(25,28,32,.06),transparent 70%);
+  animation:drift linear infinite;
+}
+@keyframes drift{from{transform:translateX(-15vw)}to{transform:translateX(110vw)}}
 
-  .hero-meta{
-    margin-top:36px;
-    display:flex;flex-wrap:wrap;gap:24px;
-    font-size:13px;color:var(--muted);
-    font-family: ui-sans-serif, system-ui, sans-serif;
-  }
-  .hero-meta span{display:inline-flex;align-items:center;gap:6px}
-  .hero-meta .dot{width:6px;height:6px;background:var(--vermilion);border-radius:50%}
+.hero-inner{position:relative;z-index:2;max-width:900px;margin:0 auto}
+.hero-drop{
+  position:absolute;top:-70px;left:50%;width:340px;height:340px;transform:translateX(-50%);
+  border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle,rgba(25,28,32,.09),rgba(25,28,32,.03) 55%,transparent 72%);
+  filter:blur(8px);animation:dropIn 2.4s cubic-bezier(.2,.8,.3,1) both;
+}
+@keyframes dropIn{from{transform:translateX(-50%) scale(.2);opacity:0}60%{opacity:1}to{transform:translateX(-50%) scale(1);opacity:1}}
+.hero-vert{
+  position:absolute;top:-30px;right:-10px;writing-mode:vertical-rl;font-family:var(--kai);
+  font-size:15px;letter-spacing:.6em;color:var(--ink-4);
+}
+@media(max-width:700px){.hero-vert{display:none}}
+.hero-kicker{
+  display:inline-block;font-family:var(--kai);font-size:15px;letter-spacing:.35em;color:var(--ink-3);
+  border-top:1px solid var(--hair);border-bottom:1px solid var(--hair);
+  padding:8px 26px;margin-bottom:34px;
+}
+h1{
+  font-family:var(--brush);font-weight:400;
+  font-size:clamp(46px,7.2vw,88px);line-height:1.3;letter-spacing:.04em;
+  filter:url(#inkText);
+}
+h1 .accent{
+  color:transparent;position:relative;
+  background:linear-gradient(120deg,var(--ink) 30%,var(--ink-3) 50%,var(--ink) 70%);
+  -webkit-background-clip:text;background-clip:text;
+}
+.hero-sub{
+  font-family:var(--kai);font-size:clamp(15px,1.5vw,18px);color:var(--ink-3);
+  max-width:36em;margin:30px auto 44px;
+}
+.hero-actions{display:flex;gap:20px;justify-content:center;flex-wrap:wrap}
+.btn{
+  display:inline-flex;align-items:center;gap:8px;padding:15px 36px;font-size:16px;cursor:pointer;
+  font-family:var(--serif);letter-spacing:.1em;transition:.35s;border:none;
+}
+.btn-ink{
+  background:var(--ink);color:var(--paper);
+  border-radius:46% 54% 51% 49%/56% 47% 53% 44%;
+  box-shadow:0 10px 26px rgba(25,28,32,.25);
+}
+.btn-ink:hover{background:#000;transform:translateY(-3px);border-radius:52% 48% 45% 55%/45% 55% 47% 53%;color:var(--paper);box-shadow:0 16px 34px rgba(25,28,32,.3)}
+.btn-wash{
+  background:transparent;color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--ink);
+  border-radius:52% 48% 46% 54%/48% 54% 46% 52%;
+}
+.btn-wash:hover{background:rgba(25,28,32,.06);transform:translateY(-3px);color:var(--ink)}
+.hero-stats{
+  display:flex;justify-content:center;gap:0;margin-top:64px;flex-wrap:wrap;
+}
+.stat{padding:0 40px;position:relative}
+.stat+.stat::before{content:"";position:absolute;left:0;top:14%;bottom:14%;width:1px;background:var(--hair)}
+.stat b{display:block;font-family:var(--brush);font-weight:400;font-size:34px;line-height:1.2}
+.stat span{font-size:13px;color:var(--ink-4);letter-spacing:.15em}
+@media(max-width:560px){.stat{padding:0 18px}}
 
-  /* ============== SECTION ============== */
-  section{padding:96px 0;border-top:1px solid var(--line);scroll-margin-top:64px}
-  section.tight{padding:64px 0}
-  .section-head{margin-bottom:64px;max-width:720px}
-  .section-head .kicker{
-    display:inline-block;
-    font-size:12px;letter-spacing:.2em;text-transform:uppercase;
-    color:var(--vermilion);margin-bottom:16px;
-    font-family: ui-sans-serif, system-ui, sans-serif;
-  }
-  .section-head h2{
-    font-size:clamp(28px, 4vw, 44px);
-    line-height:1.2;font-weight:700;    /* 二级标题加粗 */
-    letter-spacing:-.01em;
-    margin-bottom:16px;
-  }
-  .section-head p{color:var(--ink-soft);font-size:17px}
+/* 首屏下缘卷轴提示 */
+.scroll-hint{
+  position:absolute;bottom:26px;left:50%;transform:translateX(-50%);z-index:3;
+  font-size:12px;letter-spacing:.4em;color:var(--ink-3);writing-mode:vertical-rl;
+  animation:hint 2.4s ease-in-out infinite;
+}
+@keyframes hint{0%,100%{transform:translate(-50%,0);opacity:.5}50%{transform:translate(-50%,8px);opacity:1}}
 
-  /* ============== 痛点 ============== */
-  .pain{
-    display:grid;grid-template-columns:repeat(3, 1fr);gap:24px;
-  }
-  .pain-card{
-    padding:32px 28px;
-    background:#fff;
-    border:1px solid var(--line);
-    border-radius:6px;
-    position:relative;
-  }
-  .pain-card .num{
-    font-family: ui-serif, Georgia, serif;
-    font-size:13px;color:var(--vermilion);letter-spacing:.15em;
-    margin-bottom:20px;display:block;
-  }
-  .pain-card h3{
-    font-size:20px;font-weight:700;    /* 加粗卡片标题 */
-    margin-bottom:12px;line-height:1.4;
-  }
-  .pain-card p{color:var(--ink-soft);font-size:15px}
+/* ============ 通用节段 ============ */
+section{padding:110px 0;position:relative}
+.sec-head{text-align:center;max-width:720px;margin:0 auto 70px;position:relative}
+.sec-juan{
+  display:inline-block;font-family:var(--brush);font-size:17px;color:var(--paper);
+  background:var(--ink);padding:5px 18px 5px 22px;letter-spacing:.3em;margin-bottom:22px;
+  border-radius:48% 52% 55% 45%/52% 46% 54% 48%;
+}
+.sec-head h2{font-family:var(--brush);font-weight:400;font-size:clamp(34px,4.4vw,52px);letter-spacing:.06em}
+.sec-head p{color:var(--ink-3);margin-top:18px;font-size:16px}
 
-  /* ============== FEATURES ============== */
-  .features{
-    display:grid;grid-template-columns:repeat(2, 1fr);gap:0;
-    border-top:1px solid var(--line);
-    border-left:1px solid var(--line);
-  }
-  .feature{
-    padding:40px 36px;
-    border-right:1px solid var(--line);
-    border-bottom:1px solid var(--line);
-    background:#fff;
-    transition:background .2s;
-  }
-  .feature:hover{background:#fbf9f3}
-  .feature .ico{
-    width:40px;height:40px;border-radius:4px;
-    background:var(--paper-2);
-    display:grid;place-items:center;
-    margin-bottom:20px;
-    color:var(--vermilion);
-  }
-  .feature .ico svg{width:22px;height:22px}
-  .feature h3{
-    font-size:20px;font-weight:700;    /* 加粗特性标题 */
-    margin-bottom:8px
-  }
-  .feature p{color:var(--ink-soft);font-size:15px}
+/* ============ 在线体验 ============ */
+.try-sec{background:linear-gradient(180deg,transparent,rgba(25,28,32,.03) 20%,rgba(25,28,32,.03) 80%,transparent)}
+.try-box{
+  background:#fcfbf8;border:1px solid var(--hair);overflow:hidden;position:relative;
+  border-radius:6px;
+  box-shadow:0 30px 60px rgba(25,28,32,.08), 0 1px 0 #fff inset;
+}
+.try-box::before,.try-box::after{
+  content:"";position:absolute;width:180px;height:180px;pointer-events:none;
+  border-radius:48% 52% 60% 40%/55% 42% 58% 45%;
+  background:radial-gradient(circle at 40% 35%,rgba(25,28,32,.08),transparent 70%);
+  filter:blur(12px);mix-blend-mode:multiply;
+}
+.try-box::before{top:-60px;right:-50px}
+.try-box::after{bottom:-70px;left:-40px}
+.try-bar{
+  display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  padding:18px 26px;border-bottom:1px solid var(--hair);position:relative;z-index:2;
+}
+.try-bar .modes{display:flex;gap:10px;flex-wrap:wrap}
+.chip{
+  font-family:var(--serif);font-size:13.5px;padding:7px 18px;border:none;cursor:pointer;
+  background:transparent;color:var(--ink-3);box-shadow:inset 0 0 0 1px var(--hair);
+  border-radius:48% 52% 55% 45%/55% 45% 55% 45%;transition:.3s;letter-spacing:.05em;
+}
+.chip.active,.chip:hover{background:var(--ink);color:var(--paper);box-shadow:none}
+.try-grid{display:grid;grid-template-columns:1fr 1fr;position:relative;z-index:2}
+@media(max-width:760px){.try-grid{grid-template-columns:1fr}}
+.try-pane{padding:24px 26px 28px}
+.try-pane+.try-pane{border-left:1px solid var(--hair)}
+@media(max-width:760px){.try-pane+.try-pane{border-left:none;border-top:1px solid var(--hair)}}
+.try-pane label{display:block;font-size:12px;letter-spacing:.3em;color:var(--ink-4);margin-bottom:12px;font-family:var(--kai)}
+.try-pane textarea,.try-out{
+  width:100%;min-height:150px;resize:vertical;font-family:var(--serif);font-size:17px;line-height:2;
+  background:var(--paper);border:1px solid var(--hair);padding:16px 18px;color:var(--ink);border-radius:4px;
+}
+.try-pane textarea:focus{outline:none;border-color:var(--ink-3);box-shadow:0 0 0 3px rgba(25,28,32,.07)}
+.try-out{white-space:pre-wrap}
+.try-out .hit{
+  color:var(--seal);font-weight:700;position:relative;
+  background:radial-gradient(ellipse at center,rgba(25,28,32,.1),transparent 75%);
+}
+.try-foot{padding:14px 26px;border-top:1px solid var(--hair);font-size:13px;color:var(--ink-4);display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;position:relative;z-index:2}
+.try-foot b{color:var(--seal)}
 
-  /* ============== MODES ============== */
-  .modes{
-    display:grid;grid-template-columns:repeat(4, 1fr);gap:20px;
-  }
-  .mode{
-    padding:28px 24px;
-    background:#fff;
-    border:1px solid var(--line);
-    border-radius:6px;
-    text-align:left;
-  }
-  .mode .arrow{
-    font-family: ui-serif, Georgia, serif;
-    font-size:24px;color:var(--vermilion);margin-bottom:16px;
-    display:block;letter-spacing:.05em;
-  }
-  .mode h4{
-    font-size:18px;font-weight:700;    /* 加粗模式小标题 */
-    margin-bottom:6px
-  }
-  .mode p{font-size:14px;color:var(--ink-soft)}
+/* ============ 特性：水墨八帧 ============ */
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:24px}
+@media(max-width:980px){.cards{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.cards{grid-template-columns:1fr}}
+.card{
+  background:#fcfbf8;border:1px solid var(--hair);padding:32px 26px;position:relative;overflow:hidden;
+  border-radius:5px;transition:.4s;
+}
+.card::after{
+  content:"";position:absolute;right:-46px;bottom:-46px;width:130px;height:130px;
+  border-radius:50% 50% 55% 45%/48% 55% 45% 52%;
+  background:radial-gradient(circle at 40% 35%,rgba(25,28,32,.1),transparent 70%);
+  filter:blur(10px);mix-blend-mode:multiply;transition:.5s;opacity:.7;
+}
+.card:hover{transform:translateY(-6px);box-shadow:0 22px 44px rgba(25,28,32,.1);border-color:rgba(25,28,32,.25)}
+.card:hover::after{transform:scale(1.6);opacity:1}
+.card .glyph{
+  width:56px;height:56px;display:grid;place-items:center;margin-bottom:20px;
+  font-size:30px;font-family:var(--brush);color:var(--paper);background:var(--ink);
+  border-radius:48% 52% 55% 45%/52% 46% 54% 48%;filter:url(#inkRough);
+}
+.card h3{font-size:18px;margin-bottom:10px;letter-spacing:.05em}
+.card p{font-size:14.5px;color:var(--ink-3)}
+.card code{font-size:12.5px;background:rgba(25,28,32,.07);padding:1px 7px;border-radius:3px;color:var(--ink-2)}
 
-  /* ============== FORMATS ============== */
-  .formats{
-    display:grid;grid-template-columns:repeat(5, 1fr);gap:16px;
-  }
-  .format{
-    padding:24px 20px;
-    background:#fff;
-    border:1px solid var(--line);
-    border-radius:6px;
-    text-align:center;
-  }
-  .format .ext{
-    font-family: ui-monospace, "SF Mono", Consolas, monospace;
-    font-size:18px;font-weight:600;color:var(--ink);
-    display:block;margin-bottom:4px;
-  }
-  .format .desc{font-size:12px;color:var(--muted);letter-spacing:.05em}
+/* ============ 方案：四条屏 ============ */
+.schemes{display:grid;grid-template-columns:repeat(2,1fr);gap:28px}
+@media(max-width:820px){.schemes{grid-template-columns:1fr}}
+.scheme{
+  background:#fcfbf8;border:1px solid var(--hair);padding:40px 38px;position:relative;overflow:hidden;
+  border-radius:5px;transition:.4s;
+}
+.scheme::before{
+  content:attr(data-zi);position:absolute;top:14px;right:20px;font-family:var(--brush);
+  font-size:88px;line-height:1;color:rgba(25,28,32,.06);pointer-events:none;
+}
+.scheme:hover{box-shadow:0 20px 48px rgba(25,28,32,.1);transform:translateY(-4px)}
+.scheme .tag{
+  display:inline-block;font-family:var(--kai);font-size:12.5px;letter-spacing:.25em;color:var(--paper);
+  background:var(--ink);padding:5px 16px;margin-bottom:20px;border-radius:46% 54% 52% 48%/55% 48% 52% 45%;
+}
+.scheme .tag.sealed{background:var(--seal)}
+.scheme h3{font-size:22px;margin-bottom:6px;letter-spacing:.03em}
+.scheme .en{font-size:13px;color:var(--ink-4);font-family:Georgia,serif;font-style:italic;margin-bottom:18px}
+.scheme p{font-size:15px;color:var(--ink-3);margin-bottom:18px}
+.scheme ul{list-style:none;font-size:14px;color:var(--ink-3)}
+.scheme li{padding:7px 0 7px 24px;position:relative;border-top:1px dashed var(--hair)}
+.scheme li::before{content:"";position:absolute;left:2px;top:16px;width:9px;height:9px;background:var(--ink);border-radius:52% 48% 60% 40%/48% 55% 45% 52%;opacity:.7}
+.scheme code{background:rgba(25,28,32,.07);padding:1px 7px;border-radius:3px;font-size:13px;color:var(--ink-2)}
 
-  /* ============== ENHANCED ============== */
-  .enhanced{
-    display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:start;
-  }
-  .enhanced-item{padding:0}
-  .enhanced-item .tag{
-    display:inline-block;
-    font-size:11px;letter-spacing:.2em;text-transform:uppercase;
-    color:var(--jade);font-weight:600;margin-bottom:12px;
-    font-family: ui-sans-serif, system-ui, sans-serif;
-  }
-  .enhanced-item h3{
-    font-size:26px;font-weight:700;    /* 加粗增强标题 */
-    margin-bottom:16px;line-height:1.3
-  }
-  .enhanced-item p{color:var(--ink-soft);font-size:16px;margin-bottom:20px}
-  .enhanced-item ul{list-style:none;padding:0;margin:0}
-  .enhanced-item li{
-    padding:10px 0;border-top:1px dashed var(--line);
-    font-size:15px;color:var(--ink-soft);
-    display:flex;gap:12px;align-items:flex-start;
-  }
-  .enhanced-item li::before{
-    content:"";flex-shrink:0;
-    width:6px;height:6px;background:var(--vermilion);
-    margin-top:9px;border-radius:50%;
-  }
+/* ============ 设计理念 ============ */
+.philo-grid{display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:start}
+@media(max-width:880px){.philo-grid{grid-template-columns:1fr}}
+.quote{
+  background:#fcfbf8;border:1px solid var(--hair);border-left:5px solid var(--ink);
+  padding:28px 32px;border-radius:0 5px 5px 0;
+  font-family:var(--kai);font-size:16.5px;color:var(--ink-2);margin-bottom:34px;
+  box-shadow:0 10px 26px rgba(25,28,32,.06);
+}
+.quote footer{font-size:13px;color:var(--ink-4);margin-top:12px;font-family:var(--serif)}
+.term{margin-bottom:28px;padding-left:24px;position:relative}
+.term::before{
+  content:"";position:absolute;left:0;top:8px;bottom:8px;width:5px;
+  background:linear-gradient(var(--ink),rgba(25,28,32,.15));
+  border-radius:50% 50% 50% 50%/40% 40% 60% 60%;filter:blur(.4px);
+}
+.term h4{font-size:17px;margin-bottom:6px;letter-spacing:.03em}
+.term h4 span{font-size:13px;color:var(--seal);margin-left:10px;font-family:var(--kai);letter-spacing:.1em}
+.term p{font-size:14.5px;color:var(--ink-3)}
+.principle{
+  background:var(--ink);color:#e8e6e0;border-radius:6px;padding:42px 40px;position:sticky;top:100px;
+  overflow:hidden;box-shadow:0 30px 60px rgba(25,28,32,.3);
+}
+.principle::before{
+  content:"";position:absolute;top:-70px;left:-70px;width:260px;height:260px;
+  border-radius:48% 52% 60% 40%/55% 42% 58% 45%;
+  background:radial-gradient(circle at 40% 35%,rgba(248,247,243,.09),transparent 70%);filter:blur(8px);
+}
+.principle h3{font-family:var(--brush);font-weight:400;font-size:26px;margin-bottom:8px;color:#fff;letter-spacing:.1em}
+.principle .sub{font-size:13.5px;color:rgba(232,230,224,.5);margin-bottom:26px;letter-spacing:.1em}
+.principle ol{list-style:none;counter-reset:p}
+.principle li{
+  counter-increment:p;padding:15px 0 15px 52px;position:relative;font-size:14.5px;color:rgba(232,230,224,.85);
+  border-top:1px solid rgba(232,230,224,.14);
+}
+.principle li::before{
+  content:counter(p,cjk-ideographic);position:absolute;left:0;top:13px;
+  width:34px;height:34px;display:grid;place-items:center;
+  background:rgba(248,247,243,.1);color:#fff;font-family:var(--brush);font-size:19px;
+  border-radius:48% 52% 55% 45%/52% 46% 54% 48%;
+}
+.principle li b{color:#fff}
+.principle .warn{
+  margin-top:24px;font-size:13px;color:rgba(232,230,224,.65);
+  border:1px solid rgba(191,58,43,.6);background:rgba(191,58,43,.16);
+  border-radius:5px;padding:15px 19px;
+}
 
-  /* ============== PLATFORM ============== */
-  .platforms{
-    display:grid;grid-template-columns:1fr 1fr;gap:24px;
-  }
-  .platform{
-    padding:36px 32px;
-    background:#fff;
-    border:1px solid var(--line);
-    border-radius:6px;
-  }
-  .platform-head{
-    display:flex;align-items:center;gap:12px;margin-bottom:16px;
-  }
-  .platform-head .os{
-    width:36px;height:36px;border-radius:4px;
-    display:grid;place-items:center;background:var(--paper-2);
-  }
-  .platform-head .os svg{width:20px;height:20px;color:var(--ink)}
-  .platform-head h3{
-    font-size:20px;font-weight:700;    /* 加粗平台标题 */
-  }
-  .platform p{color:var(--ink-soft);font-size:15px;margin-bottom:20px}
-  .platform .ext-list{
-    display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px;
-  }
-  .platform .ext-list span{
-    font-family: ui-monospace, "SF Mono", Consolas, monospace;
-    font-size:12px;padding:4px 10px;
-    background:var(--paper-2);color:var(--ink-soft);
-    border-radius:3px;
-  }
+/* ============ 更新日志：墨痕长卷 ============ */
+.tl{max-width:740px;margin:0 auto;position:relative;padding-left:40px}
+.tl::before{
+  content:"";position:absolute;left:9px;top:8px;bottom:8px;width:3px;
+  background:linear-gradient(var(--ink) 0%,rgba(25,28,32,.35) 60%,rgba(25,28,32,.1));
+  border-radius:3px;filter:blur(.5px);
+}
+.tl-item{position:relative;padding:0 0 42px 32px}
+.tl-item::before{
+  content:"";position:absolute;left:-40px;top:9px;width:19px;height:19px;
+  background:var(--ink);border-radius:52% 48% 60% 40%/48% 55% 45% 52%;
+  box-shadow:0 0 0 5px var(--paper),0 0 0 6px var(--hair);
+}
+.tl-item.old::before{background:var(--ink-3);width:15px;height:15px;left:-38px}
+.tl-ver{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.tl-ver b{font-size:20px;font-weight:900;letter-spacing:.02em}
+.tl-ver .date{font-size:13px;color:var(--ink-4);font-family:Georgia,serif}
+.tl-ver .latest{
+  font-size:11px;letter-spacing:.2em;background:var(--seal);color:#fff;padding:3px 12px;
+  border-radius:46% 54% 52% 48%/55% 48% 52% 45%;font-family:var(--kai);
+}
+.tl-item ul{list-style:none;margin-top:10px;font-size:14.5px;color:var(--ink-3)}
+.tl-item li{padding:3px 0 3px 24px;position:relative}
+.tl-item li::before{
+  content:"";position:absolute;left:4px;top:14px;width:10px;height:2px;background:var(--ink-4);border-radius:2px;
+}
+.tl-more{text-align:center;margin-top:10px}
 
-  /* ============== DOWNLOAD ============== */
-  .download{
-    background:var(--ink);
-    color:var(--paper);
-    padding:96px 0;
-    border-top:1px solid var(--ink);
-  }
-  .download .section-head h2{color:var(--paper)}
-  .download .section-head p{color:rgba(245,241,232,.7)}
-  .download .section-head .kicker{color:#e8a99a}
+/* ============ 开始 & 生态 ============ */
+.dl-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:64px;align-items:start}
+@media(max-width:880px){.dl-grid{grid-template-columns:1fr}}
+.steps{counter-reset:s}
+.step{display:flex;gap:22px;padding:22px 0;border-top:1px solid var(--hair);counter-increment:s}
+.step::before{
+  content:counter(s,cjk-ideographic);flex:none;width:44px;height:44px;
+  background:var(--ink);color:var(--paper);display:grid;place-items:center;
+  font-family:var(--brush);font-size:22px;filter:url(#inkRough);
+  border-radius:48% 52% 55% 45%/52% 46% 54% 48%;
+}
+.step h4{font-size:16.5px;margin-bottom:4px;letter-spacing:.03em}
+.step p{font-size:14px;color:var(--ink-3)}
+.step code{background:rgba(25,28,32,.07);padding:1px 7px;border-radius:3px;font-size:13px;color:var(--ink-2)}
+.eco{background:#fcfbf8;border:1px solid var(--hair);border-radius:5px;padding:34px;box-shadow:0 16px 40px rgba(25,28,32,.06)}
+.eco h3{font-size:18px;margin-bottom:6px;letter-spacing:.03em}
+.eco .sub{font-size:13.5px;color:var(--ink-4);margin-bottom:20px}
+.eco a.proj{
+  display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 0;
+  border-top:1px dashed var(--hair);border-bottom:none;color:var(--ink-2);font-size:15px;transition:.3s;
+}
+.eco a.proj:hover{color:var(--ink);padding-left:8px;border-bottom:none}
+.eco a.proj span{font-size:12.5px;color:var(--ink-4)}
+.qq{
+  margin-top:26px;background:var(--ink);color:#e8e6e0;border-radius:5px;padding:22px 26px;
+  display:flex;align-items:center;gap:18px;flex-wrap:wrap;position:relative;overflow:hidden;
+}
+.qq::after{
+  content:"";position:absolute;right:-40px;top:-40px;width:140px;height:140px;border-radius:50%;
+  background:radial-gradient(circle,rgba(248,247,243,.08),transparent 70%);filter:blur(6px);
+}
+.qq .q-glyph{
+  width:46px;height:46px;background:var(--seal);display:grid;place-items:center;
+  font-family:var(--brush);font-size:24px;color:#fff;border-radius:6px;transform:rotate(-4deg);
+}
+.qq b{font-size:16px;letter-spacing:.06em}
+.qq p{font-size:13px;color:rgba(232,230,224,.55)}
+.qq .num{margin-left:auto;font-family:Georgia,serif;font-size:19px;color:#fff;letter-spacing:.1em;position:relative;z-index:2}
 
-  .download-grid{
-    display:grid;grid-template-columns:repeat(3, 1fr);gap:20px;margin-top:48px;
-  }
-  .dl-card{
-    padding:32px;
-    background:#262626;
-    border:1px solid #333;
-    border-radius:6px;
-    color:var(--paper);
-    transition:border-color .2s, background .2s;
-  }
-  .dl-card:hover{
-    border-color:var(--vermilion-2);
-    background:#2a2a2a;
-  }
-  .dl-card .row{
-    display:flex;align-items:center;justify-content:space-between;
-    margin-bottom:12px;
-  }
-  .dl-card .platform-tag{
-    font-size:11px;letter-spacing:.2em;text-transform:uppercase;
-    color:#e8a99a;
-    font-family: ui-sans-serif, system-ui, sans-serif;
-  }
-  .dl-card .ext{font-size:12px;color:rgba(245,241,232,.5)}
-  .dl-card h3{
-    font-size:22px;font-weight:700;    /* 加粗下载卡片标题 */
-    margin-bottom:6px
-  }
-  .dl-card p{font-size:14px;color:rgba(245,241,232,.65);margin-bottom:20px}
-  .dl-card .dl-btn{
-    display:inline-flex;align-items:center;gap:8px;
-    color:var(--paper);
-    font-size:14px;font-weight:500;
-    border-bottom:1px solid #555;
-    padding-bottom:2px;
-  }
-  .dl-card .dl-btn:hover{color:#e8a99a;border-bottom-color:#e8a99a}
-  .dl-card .dl-btn svg{width:14px;height:14px}
+/* ============ 页脚 ============ */
+footer.site{
+  background:var(--ink);color:rgba(232,230,224,.6);padding:80px 0 44px;margin-top:60px;
+  position:relative;overflow:hidden;
+}
+footer.site::before{
+  content:"";position:absolute;left:0;right:0;top:0;height:60px;
+  background:linear-gradient(rgba(248,247,243,.06),transparent);
+}
+.foot-grid{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:56px;margin-bottom:56px;position:relative;z-index:2}
+@media(max-width:760px){.foot-grid{grid-template-columns:1fr}}
+.foot-grid h4{color:#fff;font-size:14px;letter-spacing:.3em;margin-bottom:20px;font-family:var(--kai);font-weight:400}
+.foot-grid a{display:block;color:rgba(232,230,224,.55);font-size:14px;padding:5px 0;transition:.3s;border:none}
+.foot-grid a:hover{color:#fff;padding-left:5px;border:none}
+.foot-brand{display:flex;align-items:center;gap:12px;color:#fff;font-weight:700;font-size:18px;margin-bottom:16px;letter-spacing:.06em}
+.foot-grid p{font-size:13.5px;color:rgba(232,230,224,.45);max-width:32em}
+.foot-bottom{
+  border-top:1px solid rgba(232,230,224,.12);padding-top:28px;display:flex;justify-content:space-between;
+  gap:16px;flex-wrap:wrap;font-size:13px;color:rgba(232,230,224,.4);position:relative;z-index:2;
+}
 
-  .download-extra{
-    margin-top:48px;
-    padding-top:32px;
-    border-top:1px solid #333;
-    display:flex;flex-wrap:wrap;gap:24px;align-items:center;
-    color:rgba(245,241,232,.7);
-    font-size:14px;
-  }
-  .download-extra a{color:#e8a99a}
-  .download-extra a:hover{color:#fff}
-  .download-extra .sep{color:#555}
-
-  /* ============== FOOTER ============== */
-  footer{
-    background:#0f0f0f;color:rgba(245,241,232,.55);
-    padding:48px 0;font-size:14px;
-  }
-  .foot{
-    display:flex;flex-wrap:wrap;justify-content:space-between;gap:24px;align-items:center;
-  }
-  .foot-links{display:flex;gap:20px}
-  .foot-links a{color:rgba(245,241,232,.55);border-bottom:0}
-  .foot-links a:hover{color:#fff}
-  .foot-copy{color:rgba(245,241,232,.35);font-size:13px}
-
-  /* ============== 全局标题加粗统一保障 (移动端+PC 全部加粗) ============== */
-  /* 保障所有标题元素及类似标题的模块在任何分辨率下均为粗体 */
-  h1, h2, h3, h4, h5,
-  .hero h1,
-  .hero h1 .quiet,
-  .hero h1 .accent,
-  .section-head h2,
-  .pain-card h3,
-  .feature h3,
-  .mode h4,
-  .platform-head h3,
-  .dl-card h3,
-  .enhanced-item h3,
-  .brand,
-  .section-head h2,
-  .download .section-head h2 {
-    font-weight: 700 !important;   /* 强力加粗，覆盖任何细体默认值 */
-  }
-  /* 品牌下方的辅助小字保持正常字重，不干扰粗体风格 */
-  .brand small {
-    font-weight: 400 !important;
-  }
-  /* 确保卡片内的标题不会意外被覆盖为normal */
-  .pain-card h3,
-  .feature h3,
-  .mode h4,
-  .platform-head h3,
-  .dl-card h3,
-  .enhanced-item h3 {
-    font-weight: 700 !important;
-  }
-  /* 模式卡片箭头处不需加粗，保留原有视觉 */
-  .mode .arrow {
-    font-weight: normal;
-  }
-  /* 针对移动端的强化，确保所有标题在手机屏幕上也表现为粗体 */
-  @media (max-width: 860px) {
-    h1, h2, h3, h4, .hero h1, .section-head h2, .pain-card h3, .feature h3, .mode h4, 
-    .platform-head h3, .dl-card h3, .enhanced-item h3, .brand, .hero h1 .quiet, .hero h1 .accent {
-      font-weight: 700 !important;
-    }
-  }
-
-  /* ============== 响应式布局其余部分 (粗细不受影响) ============== */
-  @media (max-width: 860px){
-    .pain{grid-template-columns:1fr}
-    .features{grid-template-columns:1fr}
-    .modes{grid-template-columns:1fr 1fr}
-    .formats{grid-template-columns:1fr 1fr 1fr}
-    .enhanced{grid-template-columns:1fr;gap:40px}
-    .platforms{grid-template-columns:1fr}
-    .download-grid{grid-template-columns:1fr}
-    nav ul{display:none}
-    .demo{grid-template-columns:1fr;gap:24px}
-    .demo-arrow{transform:rotate(90deg)}
-    .hero{padding:64px 0 56px}
-    section{padding:64px 0}
-    .section-head{margin-bottom:40px}
-  }
-  @media (max-width: 520px){
-    .formats{grid-template-columns:1fr 1fr}
-    .modes{grid-template-columns:1fr}
-    .wrap{padding:0 20px}
-  }
+/* 显现动画 */
+.rv{opacity:0;transform:translateY(30px);transition:opacity .9s cubic-bezier(.2,.7,.3,1),transform .9s cubic-bezier(.2,.7,.3,1)}
+.rv.in{opacity:1;transform:none}
+.rv.d1{transition-delay:.09s}.rv.d2{transition-delay:.18s}.rv.d3{transition-delay:.27s}.rv.d4{transition-delay:.36s}
 </style>
 </head>
 <body>
 
-<!-- ============ NAV ============ -->
-<header class="nav">
-  <div class="wrap nav-inner">
-    <a href="#" class="brand" style="border-bottom:0">
-      <span class="brand-mark">陆</span>
-      <span>规范繁体<small>基于《通规》附件1</small></span>
+<!-- SVG 墨迹滤镜定义 -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <filter id="inkRough" x="-20%" y="-20%" width="140%" height="140%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.06" numOctaves="3" seed="7" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="4"/>
+    </filter>
+    <filter id="inkText" x="-5%" y="-5%" width="110%" height="110%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.35" numOctaves="2" seed="3" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="1.6"/>
+    </filter>
+    <linearGradient id="mt1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#191c20" stop-opacity=".16"/><stop offset="1" stop-color="#191c20" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="mt2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#191c20" stop-opacity=".26"/><stop offset="1" stop-color="#191c20" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="mt3" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#191c20" stop-opacity=".4"/><stop offset="1" stop-color="#191c20" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<nav id="nav">
+  <div class="nav-inner">
+    <a class="brand" href="#top">
+      <span class="seal">規<br>範</span>
+      规范繁体字形转换器
     </a>
-    <nav>
-      <ul>
-        <li><a href="#why">为什么</a></li>
-        <li><a href="#features">特性</a></li>
-        <li><a href="#modes">转换模式</a></li>
-        <li><a href="#download">下载</a></li>
-      </ul>
-    </nav>
-    <a class="nav-cta" href="#download">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      下载
-    </a>
+    <div class="nav-links">
+      <a href="#try">在线体验</a>
+      <a href="#features">功能特性</a>
+      <a href="#schemes">转换方案</a>
+      <a href="#design">设计理念</a>
+      <a href="#changelog">更新日志</a>
+    </div>
+    <a class="nav-cta" href="https://gitee.com/terrytian-tech/tonggui-traditional-chinese/releases" target="_blank" rel="noopener">下载安装</a>
+  </div>
+</nav>
+
+<!-- ================= 首屏 ================= -->
+<header id="top">
+  <!-- 远山淡影 -->
+  <svg class="mts" viewBox="0 0 1440 420" preserveAspectRatio="none" aria-hidden="true">
+    <path fill="url(#mt1)" d="M0,300 C120,220 200,150 320,200 C420,242 480,120 620,150 C760,180 820,90 960,130 C1100,170 1180,110 1300,170 C1370,205 1410,190 1440,180 L1440,420 L0,420 Z"/>
+    <path fill="url(#mt2)" d="M0,340 C100,280 180,220 300,260 C400,294 500,190 640,230 C780,270 860,170 1000,210 C1140,250 1240,200 1340,250 C1390,275 1420,265 1440,255 L1440,420 L0,420 Z"/>
+    <path fill="url(#mt3)" d="M0,385 C140,340 240,300 380,330 C520,360 620,290 780,320 C940,350 1060,290 1200,330 C1300,358 1380,340 1440,330 L1440,420 L0,420 Z"/>
+  </svg>
+  <div class="cloud" style="top:18%;width:280px;height:90px;animation-duration:80s"></div>
+  <div class="cloud" style="top:32%;width:200px;height:70px;animation-duration:110s;animation-delay:-40s"></div>
+
+  <div class="hero-inner">
+    <div class="hero-drop"></div>
+    <h1>墨有浓淡，字有正俗<br>让繁体回归<span class="accent">规范</span></h1>
+    <p class="hero-sub">
+      一套以《通用规范汉字表》（2013）为准绳的繁体字形转换程序。
+      将港、台标准及旧字形、异体字混杂的“繁体”，统一转换为内地繁体出版的规范字形。
+    </p>
+    <div class="hero-actions">
+      <a class="btn btn-ink" href="https://gitee.com/terrytian-tech/tonggui-traditional-chinese/releases" target="_blank" rel="noopener">获取安装包</a>
+      <a class="btn btn-wash" href="https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards" target="_blank" rel="noopener">GitHub 仓库</a>
+    </div>
+    <div class="hero-stats">
+      <div class="stat"><b>肆</b><span>转换方案</span></div>
+      <div class="stat"><b>柒类</b><span>支持文件格式</span></div>
+      <div class="stat"><b>1.4.1</b><span>OpenCC 引擎</span></div>
+      <div class="stat"><b>全平台</b><span>Win / Linux</span></div>
+    </div>
   </div>
 </header>
 
-<!-- ============ HERO ============ -->
-<section class="hero" style="border-top:0">
-  <div class="wrap" style="position:relative">
-    <span class="hero-eyebrow">基于《通用规范汉字表》附件1《规范字与繁体字、异体字对照表》</span>
-    <h1>
-      文档繁简转换<br/>
-      按<span class="accent">《通规》</span>来<br/>
-      <span class="quiet">而不是按Word来</span>
-    </h1>
-    <p class="lead">
-      一款面向编辑出版、字幕与电子书制作场景的本地化繁简转换工具。<br>
-      字形标准、保留原格式、按字转换、可校对——把Word繁简转换的“水土不服”一次解决。
-    </p>
-
-    <!-- 字形对比 -->
-    <div class="demo">
-      <div class="demo-col from">
-        <span class="label">输入 · 港台 / 旧字形</span>
-        <span>梁啟超</span> <span class="hl">分別</span> <span>山脈<br/>
-        內容 說明 <span class="hl">記錄</span> 關係戶<br/>
-        橫排 遙望 禹王宮</span>
-      </div>
-      <div class="demo-arrow">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="5" y1="12" x2="19" y2="12"/>
-          <polyline points="12 5 19 12 12 19"/>
-        </svg>
-      </div>
-      <div class="demo-col to">
-        <span class="label">输出 · 《通规》规范繁体</span>
-        <span>梁啓超</span> <span class="hl">分别</span> <span>山脉<br/>
-        内容 説明 <span class="hl">記録</span> 關係户<br/>
-        横排 遥望 禹王宫</span>
-      </div>
-    </div>
-
-    <div class="hero-actions">
-      <a class="btn btn-primary" href="#download">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        下载安装包
-      </a>
-      <a class="btn btn-ghost" href="https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards" target="_blank" rel="noopener">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58v-2.18c-3.34.73-4.04-1.42-4.04-1.42-.55-1.39-1.34-1.76-1.34-1.76-1.09-.74.08-.73.08-.73 1.21.09 1.84 1.24 1.84 1.24 1.07 1.84 2.81 1.31 3.5 1 .11-.78.42-1.31.76-1.61-2.66-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.13-.3-.54-1.52.11-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.29-1.55 3.3-1.23 3.3-1.23.65 1.66.24 2.88.12 3.18.77.84 1.23 1.91 1.23 3.22 0 4.61-2.81 5.62-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58A12 12 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
-        查看源码
-      </a>
-    </div>
-
-    <div class="hero-meta" style="display: flex; flex-direction: column; gap: 4px;">
-      <span><span class="dot"></span>Win10 / Win11 · Deepin / GXDE</span>
-      <span><span class="dot"></span>Apache License 2.0</span>
-      <span><span class="dot"></span>交流繁简转换相关问题可进QQ群：1055649831</span>
-    </div>
-  </div>
-</section>
-
-<!-- ============ WHY ============ -->
-<section id="why">
+<!-- ================= 在线体验 ================= -->
+<section id="try" class="try-sec">
   <div class="wrap">
-    <div class="section-head">
-      <span class="kicker">为什么需要</span>
-      <h2>Word的繁简转换，<br/>并不“标准”</h2>
-      <p>市面上的转换工具，要么字形标准混乱，要么格式保留不到位。本工具存在的全部理由，就是把这两件事一起做对。</p>
+    <div class="sec-head rv">
+      <span class="sec-juan">卷 一</span>
+      <h2>牛刀小试</h2>
+      <p>输入一段繁体文本，感受「非标准字形 → 规范繁体」的转换效果。网页演示仅内置少量常见映射，完整能力请下载桌面程序。</p>
+      <svg class="brush-line" viewBox="0 0 120 14"><path d="M4,8 C30,4 60,11 116,6"/><path class="thin" d="M20,11 C50,13 80,10 104,12"/></svg>
     </div>
-    <div class="pain">
-      <div class="pain-card">
-        <span class="num">01 / 字形</span>
-        <h3>Word杂糅非标准港台字形</h3>
-        <p>Word自带繁简转换并不严格依据《通用规范汉字表》附件1，转换结果常混入港台地区的非标准字形，出版场景下不可用。</p>
+    <div class="try-box rv">
+      <div class="try-bar">
+        <div class="modes">
+          <button class="chip active" data-mode="t2gov">繁体 → 规范繁体</button>
+          <button class="chip" data-mode="t2new">仅旧字形 → 新字形</button>
+        </div>
       </div>
-      <div class="pain-card">
-        <span class="num">02 / 分词</span>
-        <h3>按词转换易造成新错误</h3>
-        <p>多数转换工具按词转换，缺乏分词处理能力，产生大量“看似对、实际错”的结果，审校成本反而更高。</p>
+      <div class="try-grid">
+        <div class="try-pane">
+          <label>輸入 · INPUT</label>
+          <textarea id="tryIn" placeholder="示例繁体文本……">遙望山峯，雲繍天成。劍閣峥嶸而崔嵬，一夫當關，萬夫莫開。錄畢此卷，叅校再三，訛字悉除，庶幾無憾矣。</textarea>
+        </div>
+        <div class="try-pane">
+          <label>輸出 · OUTPUT</label>
+          <div class="try-out" id="tryOut"></div>
+        </div>
       </div>
-      <div class="pain-card">
-        <span class="num">03 / 格式</span>
-        <h3>第三方工具丢失Word文档排版</h3>
-        <p>不少繁简转换工具在处理Word文档时会改变原始格式——字体、样式、表格、图片都可能走样，等于二次返工。</p>
+      <div class="try-foot">
+        <span>本次转换共命中 <b id="hitCount">0</b> 处字形（朱砂色标出）。</span>
+        <span>演示字表为节选 · 完整方案见 <a href="https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards" target="_blank" rel="noopener">开源仓库</a></span>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ============ FEATURES ============ -->
+<!-- ================= 功能特性 ================= -->
 <section id="features">
+  <div class="ink-blob" style="width:300px;height:260px;top:60px;left:-120px"></div>
   <div class="wrap">
-    <div class="section-head">
-      <span class="kicker">核心特性</span>
-      <h2>为编辑出版场景设计</h2>
-      <p>每一项特性都对应一个真实的痛点——不做花活，只解决转换这件事。</p>
+    <div class="sec-head rv">
+      <span class="sec-juan">卷 二</span>
+      <h2>功能特性</h2>
+      <p>不止一张字表——从图形界面到 AI 辅助转换，为繁体出版、古籍整理与字幕制作而生。</p>
+      <svg class="brush-line" viewBox="0 0 120 14"><path d="M4,7 C34,11 66,3 116,8"/><path class="thin" d="M16,11 C46,9 82,13 108,10"/></svg>
     </div>
-    <div class="features">
-      <div class="feature">
-        <div class="ico">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-        </div>
-        <h3>严格遵循《通用规范汉字表》</h3>
-        <p>转换字表与词典严格依据 2013 年国务院颁布的《通用规范汉字表》附件1，这是内地繁体出版的法定标准之一，出版机构可直接采用。</p>
+    <div class="cards">
+      <div class="card rv"><div class="glyph">檔</div><h3>多格式批量转换</h3><p>支持 Word（DOC / DOCX，可保留格式）、TXT、EPUB 电子书与 SRT、ASS / SSA、LRC 字幕文件，可选定文件夹内文件批量处理。</p></div>
+      <div class="card rv d1"><div class="glyph">智</div><h3>AI 繁简转换模块</h3><p>内置独立 AI 转换模块，与传统 OpenCC 引擎互为补充，处理棘手的一对多、语境用字。</p></div>
+      <div class="card rv d2"><div class="glyph">詞</div><h3>结巴分词加持</h3><p>离线转换前可选开启结巴分词，含古汉语专用词典，显著歧义字的转换准确度。</p></div>
+      <div class="card rv d3"><div class="glyph">碼</div><h3>智能编码检测</h3><p>自动检测文本文件（TXT）编码，亦可强制按指定编码读取；与其他文件编码逻辑独立处理，互不干扰。</p></div>
+      <div class="card rv"><div class="glyph">窗</div><h3>现代图形界面</h3><p>基于 PySide6 构建，支持明暗主题、转换中途取消、在线检查更新，开箱即用，无需命令行。</p></div>
+      <div class="card rv d1"><div class="glyph">臺</div><h3>全平台覆盖</h3><p>提供 Windows 11 / 10 / 7 安装包，Deepin / GXDE 提供 deb 包；源码在 Github 完全公开，亦支持从源码自行部署。</p></div>
+      <div class="card rv d2"><div class="glyph">入</div><h3>输入法级输出</h3><p>转换方案可接入小狼毫（Rime）输入法，让输入法直接打出《通用规范汉字表》标准繁体字形。</p></div>
+      <div class="card rv d3"><div class="glyph">源</div><h3>开放可定制</h3><p>Github 上全部字表、词典以 txt 格式发布，可自行编辑或编译为 ocd2；Apache 2.0 协议，自由用于任何项目。</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 转换方案 ================= -->
+<section id="schemes">
+  <div class="ink-blob" style="width:340px;height:280px;bottom:40px;right:-140px"></div>
+  <div class="wrap">
+    <div class="sec-head rv">
+      <span class="sec-juan">卷 三</span>
+      <h2>四种转换方案</h2>
+      <p>四种 OpenCC 配置，覆盖繁⇄简与新旧字形的全部场景；均适用于 OpenCC 1.3.2 及以上版本。</p>
+      <svg class="brush-line" viewBox="0 0 120 14"><path d="M4,8 C36,3 70,12 116,7"/><path class="thin" d="M24,12 C54,10 84,13 106,11"/></svg>
+    </div>
+    <div class="schemes">
+      <div class="scheme rv" data-zi="壹">
+        <span class="tag sealed">主打方案</span>
+        <h3>繁体 → 规范繁体</h3>
+        <div class="en">t2gov.json</div>
+        <p>针对内地繁体稿件与古籍整理稿件：转换全部异体关系，同时处理简—繁「一对一」字，解决繁简混杂问题。</p>
       </div>
-      <div class="feature">
-        <div class="ico">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-        </div>
-        <h3>Word原生保留排版</h3>
-        <p>Word文档（DOC/DOCX）转换后，字体、样式、表格、图片等原有格式完整保留，效果与Word内置的繁简转换一致。配合Word的“比较”功能可自动标出所有变动，便于审校。</p>
+      <div class="scheme rv d1" data-zi="贰">
+        <span class="tag">精校模式</span>
+        <h3>仅旧字形 → 新字形</h3>
+        <div class="en">t2new.json</div>
+        <p>只转换《新旧字形对照表》所收旧印刷字形及古籍俗字、讹字，保留大部分异体字，适合古诗文集等需人工判断的稿件。</p>
       </div>
-      <div class="feature">
-        <div class="ico">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-        </div>
-        <h3>基于OpenCC转换引擎</h3>
-        <p>采用业界成熟的OpenCC库作为底层转换引擎，叠加基于《通用规范汉字表》附件1调整的异体字映射，转换结果较市面上主流工具可靠。</p>
+      <div class="scheme rv d2" data-zi="叁">
+        <span class="tag">反向转换</span>
+        <h3>繁体 → 简体</h3>
+        <div class="en">t2s.json</div>
+        <p>将繁体字、异体字转为《通用规范汉字表》所收简体字；剔除了原 OpenCC 字表中大部分表外类推简化字。</p>
       </div>
-      <div class="feature">
-        <div class="ico">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-        </div>
-        <h3>集成AI独立转换模块</h3>
-        <p>独立AI繁简转换模块，支持原生调用Deepseek等主流AI大模型，大幅提升准确率。</p>
+      <div class="scheme rv d3" data-zi="肆">
+        <span class="tag">简体适用</span>
+        <h3>简体 → 规范繁体</h3>
+        <div class="en">s2t.json</div>
+        <p>依《通用规范汉字表》附件 1 将简体转为规范繁体；类推简化字原则上不予收录，留待出版人员三审三校处理。</p>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ============ MODES ============ -->
-<section id="modes" class="tight">
+<!-- ================= 设计理念 ================= -->
+<section id="design">
   <div class="wrap">
-    <div class="section-head">
-      <span class="kicker">四种转换模式</span>
-      <h2>总有一种适合你的稿件</h2>
+    <div class="sec-head rv">
+      <span class="sec-juan">卷 四</span>
+      <h2>设计理念</h2>
+      <p>以《通用规范汉字表》为纲，以《现代汉语词典》《辞海》等权威辞书为目——既尊规范，又校实事。</p>
+      <svg class="brush-line" viewBox="0 0 120 14"><path d="M4,6 C32,10 64,4 116,9"/><path class="thin" d="M18,11 C48,13 78,9 104,12"/></svg>
     </div>
-    <div class="modes">
-      <div class="mode">
-        <span class="arrow">简 → 繁</span>
-        <h4>简体转《通规》繁体</h4>
-        <p>把简体稿件转换为符合《通用规范汉字表》的规范繁体字形。</p>
+    <div class="philo-grid">
+      <div class="rv">
+        <blockquote class="quote">
+          本表的编制是为了指导正确使用《通用规范汉字表》、方便古籍阅读、促进海峡两岸及港澳地区交流。
+          <footer>—— 《通用规范汉字表》附件 1《规范字与繁体字、异体字对照表》说明</footer>
+        </blockquote>
+        <div class="term">
+          <h4>规范繁体字 <span>目标字形</span></h4>
+          <p>《通用规范汉字表》附件 1 指定的繁体字形，以及一、二、三级字表中繁简一致的规范字。</p>
+        </div>
+        <div class="term">
+          <h4>异体字 <span>原则停用</span></h4>
+          <p>与规范字字音、字义相同而字形不同的字，为《通用规范汉字表》附件 1 指定的异体字形，原则上应当停止使用。</p>
+        </div>
+        <div class="term">
+          <h4>表外异体字 <span>广收博采</span></h4>
+          <p>《现汉》《新华字典》标识的表外异体字、《新旧字形对照表》旧字形、古籍中公认可径改的俗字讹字，均在收录之列——远超附件 1 的不足千组对应关系。</p>
+        </div>
+        <div class="term">
+          <h4>类推简化字 <span>谨慎从严</span></h4>
+          <p>《通用规范汉字表》之外的类推简化字原则上不再使用，本方案仅采纳权威辞书已收的少量字形。</p>
+        </div>
       </div>
-      <div class="mode">
-        <span class="arrow">繁 → 简</span>
-        <h4>《通规》繁体转简体</h4>
-        <p>把《通规》规范繁体稿件还原为简体，字形准确、不丢格式。</p>
-      </div>
-      <div class="mode">
-        <span class="arrow">港/台 → 陆</span>
-        <h4>港台繁转《通规》繁</h4>
-        <p>将港台标准或旧字形混杂的“繁体”，统一为《通规》规范繁体。</p>
-      </div>
-      <div class="mode">
-        <span class="arrow">旧 → 新</span>
-        <h4>旧字形转新字形</h4>
-        <p>仅按《新华字典》等辞书的新旧字形对照表，转换字形而不动正—异关系。</p>
+      <div class="principle rv d1">
+        <h3>收录与排除原则</h3>
+        <div class="sub">凡有下列情形之一的，一律不予采纳</div>
+        <ol>
+          <li><b>义项无法覆盖</b>——异体字部分常用义项不能为规范字所覆盖，径改将致文本错误者，如「椷 → 缄」。</li>
+          <li><b>一对多异体关系</b>——如「閒」兼为「闲」「间」之异体，「彊」兼为「强」「疆」之异体，不作单一映射。</li>
+          <li><b>辞书已立条目</b>——《辞海》《现代汉语词典》已采纳为规范字形、拥有独立词条者，如菑、紬、並。</li>
+          <li><b>词语依《现汉》</b>——具体词语用字以《现代汉语词典》（第 7 版）为准修订词库，如「面嚮講臺」，不采纳「面向講臺」。</li>
+        </ol>
+        <div class="warn">⚠ 本方案在异体—正字关系上依据辞书对《通规》作了调整，不能视为与《通用规范汉字表》完全一致；出版从业者请将其作为便利工具，而非三审、校对依据。</div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ============ FORMATS ============ -->
-<section class="tight">
+<!-- ================= 更新日志 ================= -->
+<section id="changelog">
   <div class="wrap">
-    <div class="section-head">
-      <span class="kicker">支持的文件类型</span>
-      <h2>覆盖主流文档与媒体格式</h2>
+    <div class="sec-head rv">
+      <span class="sec-juan">卷 五</span>
+      <h2>更新日志</h2>
+      <p>自 2025 年 11 月首发以来持续迭代，逐版精修。</p>
+      <svg class="brush-line" viewBox="0 0 120 14"><path d="M4,8 C30,5 62,12 116,6"/><path class="thin" d="M22,11 C52,9 80,13 106,10"/></svg>
     </div>
-    <div class="formats">
-      <div class="format">
-        <span class="ext">DOCX</span>
-        <span class="desc">Word 文档</span>
-      </div>
-      <div class="format">
-        <span class="ext">DOC</span>
-        <span class="desc">Word 97-2003</span>
-      </div>
-      <div class="format">
-        <span class="ext">TXT</span>
-        <span class="desc">纯文本</span>
-      </div>
-      <div class="format">
-        <span class="ext">EPUB</span>
-        <span class="desc">电子书</span>
-      </div>
-      <div class="format">
-        <span class="ext">SRT/ASS</span>
-        <span class="desc">字幕文件</span>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ============ ENHANCED ============ -->
-<section>
-  <div class="wrap">
-    <div class="section-head">
-      <span class="kicker">可选增强功能</span>
-      <h2>对症下药的进阶选项</h2>
-      <p>针对转换中的疑难问题，提供可选的增强开关，默认关闭，需要时一键启用。</p>
-    </div>
-    <div class="enhanced">
-      <div class="enhanced-item">
-        <span class="tag">增强功能 ①</span>
-        <h3>转换前分词</h3>
-        <p>开启后，程序先对待转换文本做分词处理，显著提升转换准确率。分词增强完成后，文件仍维持原格式不变。</p>
+    <div class="tl">
+      <div class="tl-item rv">
+        <div class="tl-ver"><b>Version 1.4.0</b><span class="date">2026-07-31</span><span class="latest">最新版本</span></div>
         <ul>
-          <li>现代汉语 + 古汉语 双模式支持</li>
-          <li>分词结果不修改原文件，只用于转换决策</li>
-          <li>尤其适合长篇Word稿件与电子书</li>
+          <li>修正强制编码设置影响字幕文件转换的问题</li>
+          <li>改进 EPUB 转换支持，移除 ebooklib 依赖</li>
+          <li>独立 AI 繁简转换模块更新至 0.2.4</li>
         </ul>
       </div>
-      <div class="enhanced-item">
-        <span class="tag">增强功能 ②</span>
-        <h3>TXT 编码指定</h3>
-        <p>针对非 UTF-8 编码的TXT文件，允许用户指定一种编码进行解码，避免转换后出现乱码。</p>
+      <div class="tl-item old rv">
+        <div class="tl-ver"><b>Version 1.3.12</b><span class="date">2026-07-26</span></div>
+        <ul><li>新增独立 AI 繁简转换模块（LLMCC，源码另行开源）</li></ul>
+      </div>
+      <div class="tl-item old rv">
+        <div class="tl-ver"><b>Version 1.3.11</b><span class="date">2026-07-13</span></div>
+        <ul><li>OpenCC 引擎更新至 1.4.1，跟随官方词库调整黄粱、高粱、小丑等词组转换</li></ul>
+      </div>
+      <div class="tl-item old rv">
+        <div class="tl-ver"><b>Version 1.3.9</b><span class="date">2026-07-04</span></div>
         <ul>
-          <li>支持 GBK/GB18030/Big5/UTF-8 等</li>
-          <li>解码后正常进入转换流程，结果统一为 UTF-8</li>
-          <li>对历史存档的字幕、TXT资料尤其有用</li>
+          <li>删去 32 组非《通规》正字转换关系；OpenCC 引擎更新至 1.4.0</li>
+          <li>Linux deb 包针对 Deepin / GXDE 构建</li>
         </ul>
       </div>
-    </div>
-  </div>
-</section>
-
-<!-- ============ PLATFORM ============ -->
-<section class="tight">
-  <div class="wrap">
-    <div class="section-head">
-      <span class="kicker">平台支持</span>
-      <h2>Windows 与 Linux 双端覆盖</h2>
-      <p>提供开箱即用的安装包，无需自行配置Python环境。</p>
-    </div>
-    <div class="platforms">
-      <div class="platform">
-        <div class="platform-head">
-          <div class="os">
-            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5.5L10.5 4.4V11.5H3V5.5zM3 12.5H10.5V19.6L3 18.5V12.5zM11.5 4.3L21 3V11.5H11.5V4.3zM11.5 12.5H21V21L11.5 19.7V12.5z"/></svg>
-          </div>
-          <h3>Windows</h3>
-        </div>
-        <p>提供编译好的安装包，支持 Windows 10 / Windows 11，同时为 Windows 7 用户提供独立编译版本。下载后双击安装即可使用。</p>
-        <div class="ext-list">
-          <span>EXE 安装包</span><span>Win10/11 &amp; Win7 双版本</span><span>原生 DOC 支持</span>
-        </div>
+      <div class="tl-item old rv">
+        <div class="tl-ver"><b>Version 1.3.8</b><span class="date">2026-07-02</span></div>
+        <ul>
+          <li>异体字转换关系新增 378 组，非《通规》正字原则上不再转换</li>
+          <li>Windows 7 兼容版本迁移至 OpenCC Python 替代实现</li>
+        </ul>
       </div>
-      <div class="platform">
-        <div class="platform-head">
-          <div class="os">
-            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.424.424 0 0 0-.11.135c-.26.268-.45.6-.663.839-.199.199-.485.267-.797.4-.313.136-.658.269-.864.68-.09.189-.136.394-.132.602 0 .199.027.4.055.594.104.727.197 1.494.466 2.182.328.84.812 1.566 1.383 2.197.557.602 1.246 1.097 1.974 1.485.516.279 1.092.502 1.654.504.659 0 1.27-.193 1.85-.473 1.106-.523 2.13-1.246 3.064-2.045.594-.521 1.165-1.092 1.7-1.699.327-.394.651-.789.926-1.199.137-.199.244-.41.371-.604.07-.107.144-.213.198-.32.057-.117.084-.244.084-.371 0-.357-.197-.594-.465-.71-.21-.104-.487-.137-.738-.117-.27.018-.527.057-.785.082-.268.027-.527.045-.785.018-.328-.045-.604-.162-.781-.426-.137-.213-.199-.484-.193-.781.014-.582.27-1.229.65-1.78.398-.582.926-1.07 1.508-1.49.582-.418 1.226-.768 1.85-1.097.654-.357 1.302-.689 1.85-1.107.582-.426 1.07-.95 1.262-1.625.082-.328.092-.66.012-.979-.082-.328-.252-.604-.426-.848-.156-.213-.328-.41-.473-.582-.297-.357-.557-.689-.768-.95-.426-.557-.668-.962-.668-1.342 0-.213.057-.426.156-.624.193-.357.527-.65.926-.848.398-.193.85-.295 1.302-.295.426 0 .85.082 1.226.252.156.07.328.156.473.27.082-1.342-.328-2.625-1.226-3.47-.85-.795-2.058-1.246-3.368-1.302-.27-.013-.557-.013-.85 0z"/></svg>
-          </div>
-          <h3>Deepin / GXDE</h3>
-        </div>
-        <p>提供 deb 格式安装包，Linux 桌面发行版可直接安装。Linux 版当前支持 DOCX、TXT、EPUB与字幕文件。</p>
-        <div class="ext-list">
-          <span>DEB 安装包</span><span>DOCX/TXT/EPUB/字幕</span><span>Deepin/GXDE桌面</span>
-        </div>
+      <div class="tl-item old rv">
+        <div class="tl-ver"><b>Version 1.3.6</b><span class="date">2026-05-31</span></div>
+        <ul><li>新增 EPUB 电子书文件转换支持</li></ul>
+      </div>
+      <div class="tl-item old rv">
+        <div class="tl-ver"><b>Version 1.3.0</b><span class="date">2026-04-05</span></div>
+        <ul><li>新增文本编码强制指定、结巴分词开关，解锁 Word 保留格式选项</li></ul>
+      </div>
+      <div class="tl-item old rv">
+        <div class="tl-ver"><b>Version 1.0.0</b><span class="date">2025-11-23</span></div>
+        <ul><li>「规范繁体字形转换器」首次发布</li></ul>
       </div>
     </div>
+    <div class="tl-more rv">
+      <a class="btn btn-wash" href="https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/blob/main/doc/%E3%80%8C%E8%A7%84%E8%8C%83%E7%B9%81%E4%BD%93%E5%AD%97%E5%BD%A2%E8%BD%AC%E6%8D%A2%E5%99%A8%E3%80%8D%E6%9B%B4%E6%96%B0%E5%8E%86%E5%8F%B2%E6%97%A5%E5%BF%97.md" target="_blank" rel="noopener">查看完整更新日志</a>
+    </div>
   </div>
 </section>
 
-<!-- ============ DOWNLOAD ============ -->
-<section class="download" id="download">
+<!-- ================= 开始 & 生态 ================= -->
+<section id="download">
+  <div class="ink-blob" style="width:280px;height:240px;top:80px;left:-110px"></div>
   <div class="wrap">
-    <div class="section-head">
-      <span class="kicker">立即下载</span>
-      <h2>挑一个适合你的版本，<br/>马上开始转换</h2>
-      <p>推荐直接下载安装包，免配置、免折腾；喜欢折腾的也可以从源码自行部署。</p>
+    <div class="sec-head rv">
+      <span class="sec-juan">卷 六</span>
+      <h2>开始使用</h2>
+      <p>三步即可上手；亦可从源码自行部署，或将方案接入自己的工具链。</p>
+      <svg class="brush-line" viewBox="0 0 120 14"><path d="M4,7 C34,4 68,11 116,8"/><path class="thin" d="M20,12 C50,10 82,12 104,11"/></svg>
     </div>
-
-    <div class="download-grid">
-      <a class="dl-card" href="https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/releases/download/Transformer(1.4.0)/Traditional-Chinese-Transformer_1.4.0_setup_for_Win10+.zip" target="_blank" rel="noopener" style="border-bottom:0">
-        <div class="row">
-          <span class="platform-tag">Windows 10 / 11</span>
-          <span class="ext">.exe · v1.4.0</span>
+    <div class="dl-grid">
+      <div class="steps rv">
+        <div class="step"><div><h4>下载安装包</h4><p>前往 <a href="https://gitee.com/terrytian-tech/tonggui-traditional-chinese/releases" target="_blank" rel="noopener">Releases</a> 下载 Windows 安装包（支持 Win 11 / 10 / 7）或 Deepin / GXDE 的 deb 包。</p></div></div>
+        <div class="step"><div><h4>选择文件与转换模式</h4><p>拖入 Word / TXT / EPUB / 字幕文件，选择「繁体→规范繁体」等四种模式之一，可按需开启结巴分词。</p></div></div>
+        <div class="step"><div><h4>一键转换，校对成稿</h4><p>转换结果按原格式输出；出版稿件建议再行人工三审三校。</p></div></div>
+        <div class="step"><div><h4>从源码部署和自定义开发</h4><p><code>git clone</code> 仓库后进入 <code>transformer</code>（Windows）或 <code>transformer-linux</code> 目录，安装依赖并拷贝 t2gov 方案即可运行。</p></div></div>
+      </div>
+      <div class="eco rv d1">
+        <h3>采用本方案的开源项目</h3>
+        <div class="sub">字表与方案已被下列项目集成使用</div>
+        <a class="proj" href="https://github.com/frankslin/OpenCC" target="_blank" rel="noopener">opencc-wasm（WebAssembly 版 OpenCC）<span>FranksLin</span></a>
+        <a class="proj" href="https://github.com/TerryTian-tech/OpenCC-DocxConverter" target="_blank" rel="noopener">OpenCC File Converter 简繁通转换大师<span>TerryTian-tech</span></a>
+        <a class="proj" href="https://github.com/Fusyong/regexp-replace-lists-for-TextPro" target="_blank" rel="noopener">regexp-replace-lists-for-TextPro<span>Huang Fusyong</span></a>
+        <a class="proj" href="https://github.com/soizo/telegram-zh-Hant-CN" target="_blank" rel="noopener">telegram-zh-Hant-CN<span>SoizoKtantas</span></a>
+        <a class="proj" href="https://github.com/Xebec33/Mainland_Traditional_Chinese_Converter" target="_blank" rel="noopener">Mainland Traditional Chinese Converter<span>Xebec33</span></a>
+        <div class="qq">
+          <div class="q-glyph">群</div>
+          <div><b>繁简转换交流 QQ 群</b><p>欢迎出版从业者与爱好者加入讨论</p></div>
+          <div class="num">1055649831</div>
         </div>
-        <h3>Windows 安装包</h3>
-        <p>主推版本，包含完整图形界面与全部依赖，开箱即用。</p>
-        <span class="dl-btn">
-          下载 .exe
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-        </span>
-      </a>
-      <a class="dl-card" href="https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/releases/download/Transformer(1.4.0)/Traditional-Chinese-Transformer_1.4.0_setup_for_Win7.zip" target="_blank" rel="noopener" style="border-bottom:0">
-        <div class="row">
-          <span class="platform-tag">Windows 7</span>
-          <span class="ext">.exe · v1.4.0</span>
-        </div>
-        <h3>Win7 兼容版</h3>
-        <p>为仍在使用 Windows 7 的用户单独编译，功能与主版本一致。</p>
-        <span class="dl-btn">
-          下载 .exe
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-        </span>
-      </a>
-      <a class="dl-card" href="https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/releases/download/Transformer(1.4.0)/traditional-chinese-transformer_1.4.0.deb" target="_blank" rel="noopener" style="border-bottom:0">
-        <div class="row">
-          <span class="platform-tag">Linux</span>
-          <span class="ext">.deb · v1.4.0</span>
-        </div>
-        <h3>Deepin / GXDE 安装包</h3>
-        <p>deb 格式，适配Linux 桌面发行版，支持 DOCX、TXT、EPUB 与字幕文件。</p>
-        <span class="dl-btn">
-          下载 .deb
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-        </span>
-      </a>
-    </div>
-
-    <div class="download-extra">
-      <span>国内下载加速镜像:</span>
-      <a href="https://gitee.com/terrytian-tech/tonggui-traditional-chinese/releases/tag/Transformer(1.4.0)" target="_blank" rel="noopener">Gitee</a>
-      <span class="sep">·</span>
-      <a href="https://gitcode.com/TerryTian-tech/OpenCC-Tonggui-Traditional-Chinese/releases/Transformer-1.4.0" target="_blank" rel="noopener">GitCode</a>
-      <span class="sep">·</span>
-      <a href="https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards" target="_blank" rel="noopener">查看源码</a>
-      <span class="sep">·</span>
-      <a href="https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/blob/main/LICENSE" target="_blank" rel="noopener">Apache 2.0 许可</a>
-      <span class="sep" style="margin-left:auto">v1.4.0 · 基于 OpenCC 开源项目</span>
+      </div>
     </div>
   </div>
 </section>
 
-<!-- ============ FOOTER ============ -->
-<footer>
-  <div class="wrap foot">
-    <div class="foot-copy">
-      © TerryTian-tech · 规范繁体字形转换器 · Apache License 2.0
+<!-- ================= 页脚 ================= -->
+<footer class="site">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <div class="foot-brand"><span class="seal">規<br>範</span>规范繁体字形转换器</div>
+        <p>OpenCC Traditional Chinese to Traditional Chinese (The Chinese Government Standard).Apache 2.0 开源。</p>
+      </div>
+      <div>
+        <h4>项目资源</h4>
+        <a href="https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards" target="_blank" rel="noopener">GitHub 主仓库</a>
+        <a href="https://gitee.com/terrytian-tech/tonggui-traditional-chinese" target="_blank" rel="noopener">Gitee 镜像</a>
+        <a href="https://gitcode.com/TerryTian-tech/OpenCC-Tonggui-Traditional-Chinese" target="_blank" rel="noopener">GitCode 镜像</a>
+        <a href="https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/releases" target="_blank" rel="noopener">Releases 下载</a>
+      </div>
+      <div>
+        <h4>文档</h4>
+        <a href="https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/blob/main/doc/%E3%80%8A%E9%80%9A%E7%94%A8%E8%A7%84%E8%8C%83%E6%B1%89%E5%AD%97%E8%A1%A8%E3%80%8B%E8%A7%84%E8%8C%83%E7%B9%81%E4%BD%93%E8%BD%AC%E6%8D%A2%E6%96%B9%E6%A1%88%E8%AE%BE%E8%AE%A1%E8%AF%B4%E6%98%8E.md" target="_blank" rel="noopener">转换方案设计说明</a>
+        <a href="https://github.com/BYVoid/OpenCC" target="_blank" rel="noopener">OpenCC 引擎</a>
+        <a href="https://github.com/TerryTian-tech/LLMCC" target="_blank" rel="noopener">LLMCC · AI 转换模块</a>
+        <a href="https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/blob/main/LICENSE" target="_blank" rel="noopener">Apache License 2.0</a>
+      </div>
     </div>
-    <div class="foot-links">
-      <a href="https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards" target="_blank" rel="noopener">GitHub</a>
-      <a href="https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/releases" target="_blank" rel="noopener">Releases</a>
-      <a href="https://github.com/BYVoid/OpenCC" target="_blank" rel="noopener">OpenCC</a>
+    <div class="foot-bottom">
+      <span>© 2025–2026 TerryTian-tech 与其他开源贡献者</span>
+      <span>jieba 分词词典遵循 MIT License</span>
     </div>
   </div>
 </footer>
 
+<script>
+/* 导航滚动态 */
+const nav=document.getElementById('nav');
+addEventListener('scroll',()=>nav.classList.toggle('scrolled',scrollY>30),{passive:true});
+
+/* 在线体验：节选映射 */
+const MAP_COMMON={
+  '捱':'挨', 
+  '菴':'庵', 
+  '蓭':'庵', 
+  '鞌':'鞍', 
+  '盫':'盦', 
+  '豻':'犴', 
+  '堓':'岸', 
+  '晻':'暗', 
+  '闇':'暗', 
+  '厫':'廒', 
+  '嗸':'嗷', 
+  '翶':'翱', 
+  '翺':'翱', 
+  '鼇':'鰲', 
+  '抝':'拗', 
+  '媼':'媪', 
+  '奧':'奥', 
+  '慠':'傲', 
+  '嶴':'岙', 
+  '覇':'霸', 
+  '栢':'柏', 
+  '粺':'稗', 
+  '岅':'坂', 
+  '幇':'幫', 
+  '幚':'幫', 
+  '牓':'榜', 
+  '髈':'膀', 
+  '蜯':'蚌', 
+  '襃':'褒', 
+  '珤':'寶', 
+  '緥':'褓', 
+  '寳':'寶', 
+  '靌':'寶', 
+  '鉋':'刨', 
+  '鑤':'刨', 
+  '盃':'杯', 
+  '桮':'杯', 
+  '揹':'背', 
+  '鉳':'錇', 
+  '俻':'備', 
+  '偹':'備', 
+  '僃':'備', 
+  '軰':'輩', 
+  '誖':'悖', 
+  '奔':'奔', 
+  '逩':'奔', 
+  '繃':'綳', 
+  '逬':'迸', 
+  '偪':'逼', 
+  '粃':'秕', 
+  '弻':'弼', 
+  '痺':'痹', 
+  '幤':'幣', 
+  '獘':'斃', 
+  '邉':'邊', 
+  '徧':'遍', 
+  '辧':'辨', 
+  '颷':'飆', 
+  '臕':'膘', 
+  '飇':'飆', 
+  '飈':'飆', 
+  '飊':'飆', 
+  '鼈':'鱉', 
+  '別':'别', 
+  '梹':'檳', 
+  '賔':'賓', 
+  '濵':'濱', 
+  '髩':'鬢', 
+  '鬂':'鬢', 
+  '氷':'冰', 
+  '棅':'柄', 
+  '稟':'禀', 
+  '餠':'餅', 
+  '併':'并', 
+  '幷':'并', 
+  '倂':'并', 
+  '竝':'並', 
+  '剝':'剥', 
+  '盋':'鉢', 
+  '缽':'鉢', 
+  '愽':'博', 
+  '駮':'駁', 
+  '簙':'博', 
+  '蘗':'檗', 
+  '佈':'布', 
+  '悑':'怖', 
+  '倸':'睬', 
+  '寀':'采', 
+  '採':'采', 
+  '跴':'踩', 
+  '綵':'彩', 
+  '埰':'采', 
+  '叄':'叁', 
+  '飡':'餐', 
+  '叅':'參', 
+  '湌':'餐', 
+  '慙':'慚', 
+  '艸':'草', 
+  '冊':'册', 
+  '廁':'厠', 
+  '筞':'策', 
+  '挿':'插', 
+  '揷':'插', 
+  '詧':'察', 
+  '奼':'姹', 
+  '犲':'豺', 
+  '鉆':'鑽', 
+  '潹':'潺', 
+  '緾':'纏', 
+  '產':'産', 
+  '剷':'鏟', 
+  '懴':'懺', 
+  '镸':'長', 
+  '甞':'嘗', 
+  '塲':'場', 
+  '膓':'腸', 
+  '嚐':'嘗', 
+  '厰':'廠', 
+  '勦':'剿', 
+  '鼂':'晁', 
+  '謿':'嘲', 
+  '撦':'扯', 
+  '訦':'諶', 
+  '硶':'磣', 
+  '趂':'趁', 
+  '齓':'齔', 
+  '偁':'稱', 
+  '撐':'撑', 
+  '頳':'赬', 
+  '穪':'稱', 
+  '乗':'乘', 
+  '堘':'塍', 
+  '椉':'乘', 
+  '塖':'塍', 
+  '喫':'吃', 
+  '癡':'痴', 
+  '攡':'摛', 
+  '竾':'篪', 
+  '筂':'篪', 
+  '遟':'遲', 
+  '箎':'篪', 
+  '恥':'耻', 
+  '勅':'敕', 
+  '翄':'翅', 
+  '崈':'崇', 
+  '犫':'犨', 
+  '酧':'酬', 
+  '醻':'酬', 
+  '矁':'瞅', 
+  '耡':'鋤', 
+  '蒭':'芻', 
+  '鉏':'鋤', 
+  '廚':'厨', 
+  '幮':'㡡', 
+  '櫥':'橱', 
+  '鶵':'雛', 
+  '躕':'蹰', 
+  '処':'處', 
+  '椘':'楚', 
+  '歘':'欻', 
+  '舩':'船', 
+  '窓':'窗', 
+  '牎':'窗', 
+  '牕':'窗', 
+  '窻':'窗', 
+  '牀':'床', 
+  '刱':'創', 
+  '剏':'創', 
+  '剙':'創', 
+  '搥':'捶', 
+  '箠':'棰', 
+  '鎚':'錘', 
+  '旾':'春', 
+  '萅':'春', 
+  '脣':'唇', 
+  '湻':'淳', 
+  '滣':'漘', 
+  '蓴':'蒓', 
+  '醕':'醇', 
+  '惷':'蠢', 
+  '繛':'綽', 
+  '嚽':'啜', 
+  '辝':'辞', 
+  '甆':'瓷', 
+  '辤':'辭', 
+  '餈':'糍', 
+  '礠':'磁', 
+  '鶿':'鷀', 
+  '囪':'囱', 
+  '忩':'匆', 
+  '怱':'匆', 
+  '悤':'匆', 
+  '蔥':'葱', 
+  '聦':'聰', 
+  '騘':'驄', 
+  '従':'從', 
+  '樷':'叢', 
+  '藂':'叢', 
+  '湊':'凑', 
+  '觕':'粗', 
+  '麁':'粗', 
+  '麄':'粗', 
+  '麤':'粗', 
+  '蹵':'蹴', 
+  '櫕':'攢', 
+  '簒':'篡', 
+  '脃':'脆', 
+  '焠':'淬', 
+  '顇':'悴', 
+  '嵳':'嵯', 
+  '剉':'銼', 
+  '斮':'斫', 
+  '撘':'搭', 
+  '剳':'札', 
+  '獃':'呆', 
+  '瑇':'玳', 
+  '単':'單', 
+  '耼':'聃', 
+  '躭':'耽', 
+  '勯':'殫', 
+  '啗':'啖', 
+  '弾':'彈', 
+  '噉':'啖', 
+  '嚪':'啖', 
+  '攩':'擋', 
+  '盪':'蕩', 
+  '蘯':'蕩', 
+  '擣':'搗', 
+  '盜':'盗', 
+  '惪':'德', 
+  '櫈':'凳', 
+  '隄':'堤', 
+  '廸':'迪', 
+  '唙':'嘀', 
+  '牴':'抵', 
+  '觝':'抵', 
+  '逓':'遞', 
+  '蔕':'蒂', 
+  '顚':'顛', 
+  '巓':'巔', 
+  '琱':'雕', 
+  '鼦':'貂', 
+  '鵰':'雕', 
+  '弔':'吊', 
+  '蜨':'蝶', 
+  '曡':'叠', 
+  '疉':'叠', 
+  '疊':'叠', 
+  '矴':'碇', 
+  '椗':'碇', 
+  '丟':'丢', 
+  '働':'動', 
+  '兠':'兜', 
+  '阧':'陡', 
+  '荳':'豆', 
+  '閗':'鬥', 
+  '鬦':'鬥', 
+  '闘':'鬥', 
+  '鬪':'鬥', 
+  '鬭':'鬥', 
+  '鬬':'鬥', 
+  '凟':'瀆', 
+  '匵':'櫝', 
+  '覩':'睹', 
+  '妬':'妒', 
+  '螙':'蠹', 
+  '蠧':'蠹', 
+  '兌':'兑', 
+  '対':'對', 
+  '墪':'墩', 
+  '遯':'遁', 
+  '燉':'炖', 
+  '敓':'敚', 
+  '朶':'朵', 
+  '垜':'垛', 
+  '躱':'躲', 
+  '軃':'嚲', 
+  '刴':'剁', 
+  '跥':'跺', 
+  '憜':'惰', 
+  '娿':'婀', 
+  '痾':'疴', 
+  '峩':'峨', 
+  '頟':'額', 
+  '鵞':'鵝', 
+  '譌':'訛', 
+  '戹':'厄', 
+  '阨':'厄', 
+  '阸':'厄', 
+  '悪':'惡', 
+  '軶':'軛', 
+  '搤':'扼', 
+  '蕚':'萼', 
+  '齶':'腭', 
+  '鱷':'鰐', 
+  '児':'兒', 
+  '尒':'爾', 
+  '尓':'爾', 
+  '彂':'發', 
+  '栰':'筏', 
+  '罸':'罰', 
+  '鍅':'鈁', 
+  '灋':'法', 
+  '琺':'珐', 
+  '髪':'髮', 
+  '旛':'幡', 
+  '繙':'翻', 
+  '颿':'帆', 
+  '飜':'翻', 
+  '凢':'凡', 
+  '緐':'繁', 
+  '汎':'泛', 
+  '笵':'範', 
+  '飰':'飯', 
+  '倣':'仿', 
+  '髣':'仿', 
+  '疿':'痱', 
+  '癈':'廢', 
+  '雰':'氛', 
+  '峯':'峰', 
+  '蠭':'蜂', 
+  '綘':'縫', 
+  '缻':'缶', 
+  '麱':'麩', 
+  '彿':'佛', 
+  '粰':'麩', 
+  '鳧':'鳬', 
+  '髴':'佛', 
+  '俌':'輔', 
+  '坿':'附', 
+  '媍':'婦', 
+  '嘠':'嘎', 
+  '匃':'丐', 
+  '匄':'丐', 
+  '葢':'蓋', 
+  '槩':'概', 
+  '漑':'溉', 
+  '槪':'概', 
+  '乹':'乾', 
+  '亁':'乾', 
+  '尲':'尷', 
+  '桿':'杆', 
+  '稈':'秆', 
+  '榦':'幹', 
+  '贑':'贛', 
+  '灨':'贛', 
+  '疘':'肛', 
+  '槓':'杠', 
+  '皐':'皋', 
+  '髙':'高', 
+  '臯':'皋', 
+  '槹':'槔', 
+  '橰':'槔', 
+  '餻':'糕', 
+  '暠':'皓', 
+  '槀':'槁', 
+  '稾':'稿', 
+  '藳':'藁', 
+  '吿':'告', 
+  '肐':'胳', 
+  '謌':'歌', 
+  '箇':'個', 
+  '亙':'亘', 
+  '畊':'耕', 
+  '緪':'縆', 
+  '骾':'鯁', 
+  '宮':'宫', 
+  '躳':'躬', 
+  '觵':'觥', 
+  '鉤':'鈎', 
+  '簼':'篝', 
+  '耈':'耇', 
+  '夠':'够', 
+  '訽':'詬', 
+  '搆':'構', 
+  '鼔':'鼓', 
+  '皷':'鼓', 
+  '僱':'雇', 
+  '掛':'挂', 
+  '枴':'拐', 
+  '柺':'拐', 
+  '恠':'怪', 
+  '覌':'觀', 
+  '関':'關', 
+  '観':'觀', 
+  '鱞':'鰥', 
+  '舘':'館', 
+  '罆':'罐', 
+  '鑵':'罐', 
+  '帰':'歸', 
+  '媯':'嬀', 
+  '槼':'規', 
+  '瓌':'瑰', 
+  '袞':'衮', 
+  '滾':'滚', 
+  '鮌':'鯀', 
+  '囯':'國', 
+  '聝':'馘', 
+  '菓':'果', 
+  '槨':'椁', 
+  '歛':'斂', 
+  '圅':'函', 
+  '猂':'悍', 
+  '釬':'焊', 
+  '銲':'焊', 
+  '噑':'嗥', 
+  '嘷':'嗥', 
+  '獋':'嗥', 
+  '蠔':'蚝', 
+  '暤':'皞', 
+  '暭':'皞', 
+  '皜':'皓', 
+  '皡':'皞', 
+  '欱':'喝', 
+  '咊':'和', 
+  '盇':'盍', 
+  '覈':'核', 
+  '恆':'恒', 
+  '橫':'横', 
+  '紭':'紘', 
+  '閧':'哄', 
+  '鬨':'哄', 
+  '矦':'侯', 
+  '餱':'糇', 
+  '虖':'呼', 
+  '嘑':'呼', 
+  '戯':'戲', 
+  '謼':'呼', 
+  '衚':'胡', 
+  '餬':'糊', 
+  '乕':'虎', 
+  '戶':'户', 
+  '戸':'户', 
+  '沍':'冱', 
+  '芲':'花', 
+  '蘤':'花', 
+  '譁':'嘩', 
+  '畵':'畫', 
+  '諙':'話', 
+  '懐':'懷', 
+  '壊':'壞', 
+  '懽':'歡', 
+  '讙':'歡', 
+  '貛':'獾', 
+  '驩':'歡', 
+  '寏':'𡨡', 
+  '奐':'奂', 
+  '喚':'唤', 
+  '愌':'𢚾', 
+  '換':'换', 
+  '渙':'涣', 
+  '煥':'焕', 
+  '瑍':'𤥺', 
+  '瘓':'痪', 
+  '澣':'浣', 
+  '黃':'黄', 
+  '怳':'恍', 
+  '詤':'謊', 
+  '煇':'輝', 
+  '幑':'徽', 
+  '囘':'回', 
+  '囬':'回', 
+  '廻':'迴', 
+  '廽':'迴', 
+  '蚘':'蛔', 
+  '逥':'迴', 
+  '痐':'蛔', 
+  '蛕':'蛔', 
+  '蜖':'蛔', 
+  '毀':'毁', 
+  '燬':'毁', 
+  '譭':'毁', 
+  '彚':'彙', 
+  '滙':'匯', 
+  '殨':'潰', 
+  '篲':'彗', 
+  '昬':'昏', 
+  '旤':'禍', 
+  '喞':'唧', 
+  '朞':'期', 
+  '筓':'笄', 
+  '跡':'迹', 
+  '撃':'擊', 
+  '賷':'賫', 
+  '蹟':'迹', 
+  '雞':'鷄', 
+  '韲':'齏', 
+  '齎':'賫', 
+  '羇':'羈', 
+  '覊':'羈', 
+  '卽':'即', 
+  '檝':'楫', 
+  '艥':'楫', 
+  '茍':'苟', 
+  '旣':'既', 
+  '済':'濟', 
+  '兾':'冀', 
+  '曁':'暨', 
+  '繋':'繫', 
+  '戞':'戛', 
+  '裌':'夾', 
+  '斚':'斝', 
+  '榎':'檟', 
+  '姦':'奸', 
+  '姧':'奸', 
+  '牋':'箋', 
+  '椾':'箋', 
+  '豣':'豜', 
+  '韀':'韉', 
+  '囏':'艱', 
+  '堿':'碱', 
+  '減':'减', 
+  '絸':'繭', 
+  '戩':'戬', 
+  '襉':'襇', 
+  '蠒':'繭', 
+  '鐗':'鐧', 
+  '鹻':'碱', 
+  '譾':'謭', 
+  '鹼':'碱', 
+  '剣':'劍', 
+  '剱':'劍', 
+  '劎':'劍', 
+  '劒':'劍', 
+  '劔':'劍', 
+  '鍳':'鑒', 
+  '殭':'僵', 
+  '韁':'繮', 
+  '獎':'奬', 
+  '摾':'弶', 
+  '糡':'糨', 
+  '捁':'攪', 
+  '腳':'脚', 
+  '儌':'僥', 
+  '呌':'叫', 
+  '敎':'教', 
+  '堦':'階', 
+  '稭':'秸', 
+  '刦':'劫', 
+  '刧':'劫', 
+  '刼':'劫', 
+  '莭':'節', 
+  '偼':'倢', 
+  '傑':'杰', 
+  '媫':'婕', 
+  '觧':'解', 
+  '屆':'届', 
+  '觔':'斤', 
+  '巹':'卺', 
+  '厪':'廑', 
+  '晉':'晋', 
+  '唫':'吟', 
+  '賮':'贐', 
+  '秔':'粳', 
+  '荊':'荆', 
+  '経':'經', 
+  '稉':'粳', 
+  '穽':'阱', 
+  '浄':'净', 
+  '凈':'净', 
+  '淨':'净', 
+  '踁':'脛', 
+  '靜':'静', 
+  '冋':'坰', 
+  '逈':'迥', 
+  '烱':'炯', 
+  '糺':'糾', 
+  '揫':'揪', 
+  '韮':'韭', 
+  '倃':'咱', 
+  '捄':'救', 
+  '廄':'厩', 
+  '廐':'厩', 
+  '廏':'厩', 
+  '匶':'柩', 
+  '欍':'柩', 
+  '鴡':'雎', 
+  '侷':'局', 
+  '跼':'局', 
+  '蘜':'菊', 
+  '榘':'矩', 
+  '擧':'舉', 
+  '欅':'櫸', 
+  '拠':'據', 
+  '倶':'俱', 
+  '寠':'窶', 
+  '愳':'懼', 
+  '勮':'劇', 
+  '簴':'虡', 
+  '鐫':'鎸', 
+  '劵':'券', 
+  '勌':'倦', 
+  '雋':'隽', 
+  '睠':'眷', 
+  '餋':'養', 
+  '獧':'狷', 
+  '決':'决', 
+  '玨':'珏', 
+  '斍':'覺', 
+  '絕':'絶', 
+  '瑴':'珏', 
+  '橜':'橛', 
+  '蹷':'蹶', 
+  '貜':'玃', 
+  '麏':'麇', 
+  '麕':'麇', 
+  '儁':'俊', 
+  '濬':'浚', 
+  '攈':'捃', 
+  '攟':'捃', 
+  '嘅':'慨', 
+  '栞':'刊', 
+  '偘':'侃', 
+  '埳':'坎', 
+  '矙':'瞰', 
+  '粇':'糠', 
+  '穅':'糠', 
+  '摃':'扛', 
+  '匟':'炕', 
+  '攷':'考', 
+  '殼':'殻', 
+  '尅':'剋', 
+  '愙':'恪', 
+  '肎':'肯', 
+  '肻':'肯', 
+  '褃':'裉', 
+  '阬':'坑', 
+  '敂':'叩', 
+  '冦':'寇', 
+  '宼':'寇', 
+  '釦':'扣', 
+  '袴':'褲', 
+  '咵':'侉', 
+  '凷':'塊', 
+  '寛':'寬', 
+  '欵':'款', 
+  '窽':'窾', 
+  '況':'况', 
+  '鑛':'礦', 
+  '闚':'窺', 
+  '蹞':'跬', 
+  '媿':'愧', 
+  '餽':'饋', 
+  '崐':'昆', 
+  '崑':'昆', 
+  '髠':'髡', 
+  '綑':'捆', 
+  '濶':'闊', 
+  '辢':'辣', 
+  '臈':'臘', 
+  '頼':'賴', 
+  '惏':'婪', 
+  '壈':'𡒄', 
+  '覧':'覽', 
+  '擥':'攬', 
+  '嬾':'懶', 
+  '孏':'懶', 
+  '郎':'郎', 
+  '郞':'郎', 
+  '瑯':'琅', 
+  '蜋':'螂', 
+  '靁':'雷', 
+  '虆':'蔂', 
+  '絫':'累', 
+  '涙':'泪', 
+  '淚':'泪', 
+  '稜':'棱', 
+  '琍':'璃', 
+  '棃':'梨', 
+  '犂':'犁', 
+  '貍':'狸', 
+  '蔾':'藜', 
+  '褵':'縭', 
+  '瓈':'璃', 
+  '裡':'裏', 
+  '茘':'荔', 
+  '涖':'莅', 
+  '厤':'曆', 
+  '厯':'歷', 
+  '慄':'栗', 
+  '蒞':'莅', 
+  '歴':'歷', 
+  '隷':'隸', 
+  '亷':'廉', 
+  '匲':'奩', 
+  '匳':'奩', 
+  '聨':'聯', 
+  '鎌':'鐮', 
+  '籢':'奩', 
+  '籨':'奩', 
+  '涼':'凉', 
+  '樑':'梁', 
+  '粦':'磷', 
+  '痳':'淋', 
+  '隣':'鄰', 
+  '燐':'磷', 
+  '麐':'麟', 
+  '凜':'凛', 
+  '廩':'廪', 
+  '懍':'懔', 
+  '檁':'檩', 
+  '恡':'吝', 
+  '悋':'吝', 
+  '淩':'凌', 
+  '蔆':'菱', 
+  '霛':'靈', 
+  '櫺':'欞', 
+  '畄':'留', 
+  '畱':'留', 
+  '瑠':'琉', 
+  '璢':'琉', 
+  '癅':'瘤', 
+  '栁':'柳', 
+  '桞':'柳', 
+  '桺':'柳', 
+  '畂':'畝', 
+  '澑':'溜', 
+  '磟':'碌', 
+  '霤':'溜', 
+  '礲':'礱', 
+  '壠':'壟', 
+  '瘺':'瘻', 
+  '髗':'顱', 
+  '樐':'櫓', 
+  '艣':'櫓', 
+  '艪':'櫓', 
+  '彔':'录', 
+  '淥':'渌', 
+  '祿':'禄', 
+  '剹':'戮', 
+  '錄':'録', 
+  '馿':'驢', 
+  '呂':'吕', 
+  '侶':'侣', 
+  '穭':'稆', 
+  '綠':'緑', 
+  '鵉':'鸞', 
+  '畧':'略', 
+  '崘':'侖', 
+  '崙':'侖', 
+  '驘':'騾', 
+  '躶':'裸', 
+  '臝':'裸', 
+  '嬤':'嬷', 
+  '痲':'麻', 
+  '蔴':'麻', 
+  '蟇':'蟆', 
+  '傌':'駡', 
+  '罵':'駡', 
+  '脈':'脉', 
+  '衇':'脉', 
+  '霢':'霡', 
+  '満':'滿', 
+  '庬':'厖', 
+  '莾':'莽', 
+  '蠎':'蟒', 
+  '貓':'猫', 
+  '氂':'牦', 
+  '犛':'牦', 
+  '夘':'卯', 
+  '戼':'卯', 
+  '皃':'貌', 
+  '冐':'冒', 
+  '麼':'麽', 
+  '沒':'没', 
+  '睂':'眉', 
+  '楳':'梅', 
+  '槑':'梅', 
+  '凂':'浼', 
+  '甿':'氓', 
+  '蝱':'虻', 
+  '夣':'夢', 
+  '瞇':'眯', 
+  '羋':'芈', 
+  '宻':'密', 
+  '覔':'覓', 
+  '冪':'幂', 
+  '羃':'幂', 
+  '緜':'綿', 
+  '靣':'面', 
+  '麪':'麵', 
+  '麫':'麵', 
+  '玅':'妙', 
+  '庿':'廟', 
+  '烕':'滅', 
+  '瑉':'珉', 
+  '冺':'泯', 
+  '惽':'惛', 
+  '橅':'模', 
+  '謩':'謨', 
+  '饝':'饃', 
+  '歿':'殁', 
+  '眿':'眽', 
+  '獏':'貘', 
+  '黙':'默', 
+  '畆':'畝', 
+  '畒':'畝', 
+  '胟':'拇', 
+  '畞':'畝', 
+  '畮':'畝', 
+  '幙':'幕', 
+  '拏':'拿', 
+  '挐':'拿', 
+  '吶':'呐', 
+  '廼':'乃', 
+  '嬭':'奶', 
+  '錼':'鎿', 
+  '枏':'楠', 
+  '柟':'楠', 
+  '諵':'喃', 
+  '詉':'呶', 
+  '嶩':'峱', 
+  '匘':'腦', 
+  '堖':'垴', 
+  '閙':'鬧', 
+  '內':'内', 
+  '嫰':'嫩', 
+  '蜺':'霓', 
+  '伱':'你', 
+  '儗':'擬', 
+  '暱':'昵', 
+  '秊':'年', 
+  '鯰':'鮎', 
+  '卄':'廿', 
+  '唸':'念', 
+  '孃':'娘', 
+  '嫋':'裊', 
+  '嬝':'裊', 
+  '褭':'裊', 
+  '揑':'捏', 
+  '隉':'陧', 
+  '湼':'涅', 
+  '孼':'孽', 
+  '櫱':'蘖', 
+  '齧':'嚙', 
+  '糱':'糵', 
+  '囓':'嚙', 
+  '寍':'寧', 
+  '寕':'寧', 
+  '寜':'寧', 
+  '橣':'檸', 
+  '侫':'佞', 
+  '辳':'農', 
+  '挵':'弄', 
+  '槈':'耨', 
+  '鎒':'耨', 
+  '衂':'衄', 
+  '煖':'暖', 
+  '煗':'暖', 
+  '愞':'懦', 
+  '稬':'糯', 
+  '懧':'懦', 
+  '穤':'糯', 
+  '腢':'髃', 
+  '蕅':'藕', 
+  '廹':'迫', 
+  '龎':'龐', 
+  '拋':'抛', 
+  '皰':'疱', 
+  '砲':'炮', 
+  '礟':'炮', 
+  '礮':'炮', 
+  '肧':'胚', 
+  '裵':'裴', 
+  '斾':'旆', 
+  '珮':'佩', 
+  '歕':'噴', 
+  '竼':'篷', 
+  '熢':'烽', 
+  '蟚':'蟛', 
+  '掽':'碰', 
+  '踫':'碰', 
+  '磇':'砒', 
+  '毘':'毗', 
+  '豼':'貔', 
+  '螷':'蜱', 
+  '疋':'匹', 
+  '噽':'嚭', 
+  '嫓':'媲', 
+  '腁':'胼', 
+  '騈':'駢', 
+  '騗':'騙', 
+  '飃':'飄', 
+  '闝':'嫖', 
+  '撆':'撇', 
+  '屛':'屏', 
+  '帲':'帡', 
+  '甁':'瓶', 
+  '缾':'瓶', 
+  '蓱':'萍', 
+  '凴':'憑', 
+  '輧':'軿', 
+  '舖':'鋪', 
+  '悽':'凄', 
+  '淒':'凄', 
+  '棲':'栖', 
+  '慽':'戚', 
+  '慼':'戚', 
+  '亝':'齋', 
+  '斉':'齊', 
+  '旂':'旗', 
+  '棊':'棋', 
+  '碁':'棋', 
+  '碕':'埼', 
+  '蜝':'蜞', 
+  '禥':'祺', 
+  '唘':'啓', 
+  '啔':'啓', 
+  '啟':'啓', 
+  '栔':'契', 
+  '棄':'弃', 
+  '噐':'器', 
+  '憇':'憩', 
+  '愘':'恪', 
+  '鈆':'鉛', 
+  '諐':'愆', 
+  '拑':'鉗', 
+  '箝':'鉗', 
+  '銭':'錢', 
+  '潛':'潜', 
+  '濳':'潜', 
+  '壍':'塹', 
+  '籖':'籤', 
+  '羗':'羌', 
+  '鎗':'槍', 
+  '強':'强', 
+  '牆':'墻', 
+  '艢':'檣', 
+  '蘠':'薔', 
+  '繈':'襁', 
+  '繦':'襁', 
+  '鍫':'鍬', 
+  '荍':'蕎', 
+  '癄':'憔', 
+  '顦':'憔', 
+  '陗':'峭', 
+  '韒':'鞘', 
+  '匧':'篋', 
+  '珡':'琴', 
+  '琹':'琴', 
+  '懃':'勤', 
+  '寑':'寢', 
+  '吢':'吣', 
+  '唚':'吣', 
+  '搇':'撳', 
+  '靑':'青', 
+  '淸':'清', 
+  '夝':'晴', 
+  '剠':'黥', 
+  '檾':'苘', 
+  '卭':'邛', 
+  '笻':'筇', 
+  '坵':'丘', 
+  '秌':'秋', 
+  '鰌':'鰍', 
+  '龝':'秋', 
+  '汓':'泅', 
+  '虯':'虬', 
+  '毬':'球', 
+  '粬':'麯', 
+  '敺':'驅', 
+  '駈':'驅', 
+  '覰':'覷', 
+  '覻':'覷', 
+  '蠷':'蠼', 
+  '卻':'却', 
+  '搉':'榷', 
+  '愨':'慤', 
+  '帬':'裙', 
+  '羣':'群', 
+  '裠':'裙', 
+  '蚦':'蚺', 
+  '髥':'髯', 
+  '冄':'冉', 
+  '譲':'讓', 
+  '遶':'繞', 
+  '刄':'刃', 
+  '姙':'妊', 
+  '袵':'衽', 
+  '絍':'紝', 
+  '靭':'韌', 
+  '靱':'韌', 
+  '餁':'飪', 
+  '毧':'絨', 
+  '羢':'絨', 
+  '螎':'融', 
+  '宂':'冗', 
+  '粈':'糅', 
+  '宍':'肉', 
+  '蝡':'蠕', 
+  '壖':'堧', 
+  '輭':'軟', 
+  '甤':'蕤', 
+  '蕋':'蕊', 
+  '蘂':'蕊', 
+  '蘃':'蕊', 
+  '銳':'鋭', 
+  '篛':'箬', 
+  '挱':'挲', 
+  '顋':'腮', 
+  '糂':'糝', 
+  '繖':'傘', 
+  '桒':'桑', 
+  '澁':'澀', 
+  '濇':'澀', 
+  '剎':'刹', 
+  '儍':'傻', 
+  '啑':'喋', 
+  '廈':'厦', 
+  '刪':'删', 
+  '姍':'姗', 
+  '柵':'栅', 
+  '搧':'扇', 
+  '澘':'潸', 
+  '羴':'膻', 
+  '羶':'膻', 
+  '饍':'膳', 
+  '鱓':'鱔', 
+  '慯':'傷', 
+  '尙':'尚', 
+  '鞝':'緔', 
+  '虵':'蛇', 
+  '慴':'懾', 
+  '葠':'參', 
+  '蓡':'參', 
+  '蔘':'參', 
+  '昚':'慎', 
+  '愼':'慎', 
+  '賸':'剩', 
+  '屍':'尸', 
+  '溼':'濕', 
+  '蝨':'虱', 
+  '旹':'時', 
+  '寔':'實', 
+  '卋':'世', 
+  '柹':'柿', 
+  '昰':'是', 
+  '眂':'視', 
+  '眎':'視', 
+  '眡':'視', 
+  '弒':'弑', 
+  '舓':'舐', 
+  '餝':'飾', 
+  '諡':'謚', 
+  '収':'收', 
+  '夀':'壽', 
+  '倐':'倏', 
+  '疎':'疏', 
+  '毺':'毹', 
+  '踈':'疏', 
+  '儵':'倏', 
+  '藷':'薯', 
+  '庻':'庶', 
+  '潄':'漱', 
+  '豎':'竪', 
+  '涗':'涚', 
+  '稅':'税', 
+  '說':'説', 
+  '俬':'私', 
+  '廝':'厮', 
+  '籭':'篩', 
+  '佀':'似', 
+  '飤':'飼', 
+  '竢':'俟', 
+  '禩':'祀', 
+  '枀':'松', 
+  '枩':'松', 
+  '蜙':'蚣', 
+  '捜':'搜', 
+  '蘓':'蘇', 
+  '泝':'溯', 
+  '遡':'溯', 
+  '愬':'訴', 
+  '痠':'酸', 
+  '祘':'算', 
+  '嵗':'歲', 
+  '歳':'歲', 
+  '繐':'穗', 
+  '鐆':'鐩', 
+  '飱':'飧', 
+  '筍':'笋', 
+  '簑':'蓑', 
+  '鎻':'鎖', 
+  '鏁':'鎖', 
+  '牠':'它', 
+  '墖':'塔', 
+  '搨':'拓', 
+  '躢':'蹋', 
+  '菭':'苔', 
+  '擡':'抬', 
+  '墰':'罎', 
+  '罈':'罎', 
+  '壜':'罎', 
+  '襢':'袒', 
+  '歎':'嘆', 
+  '醣':'糖', 
+  '餹':'糖', 
+  '鎲':'钂', 
+  '絛':'縧', 
+  '搯':'掏', 
+  '縚':'縧', 
+  '謟':'諂', 
+  '迯':'逃', 
+  '鞀':'鼗', 
+  '鞉':'鼗', 
+  '籐':'藤', 
+  '嗁':'啼', 
+  '謕':'啼', 
+  '蹏':'蹄', 
+  '鴺':'鵜', 
+  '躰':'體', 
+  '骵':'體', 
+  '軆':'體', 
+  '屜':'屉', 
+  '逷':'逖', 
+  '薙':'剃', 
+  '鬀':'剃', 
+  '塡':'填', 
+  '覜':'眺', 
+  '銕':'鐵', 
+  '鐡':'鐵', 
+  '厛':'廳', 
+  '聴':'聽', 
+  '聼':'聽', 
+  '廰':'廳', 
+  '痌':'恫', 
+  '峝':'峒', 
+  '筩':'筒', 
+  '衕':'同', 
+  '偸':'偷', 
+  '婾':'偷', 
+  '媮':'偷', 
+  '紏':'糾', 
+  '禿':'秃', 
+  '凃':'涂', 
+  '圗':'圖', 
+  '兎':'兔', 
+  '兔':'兔', 
+  '貒':'猯', 
+  '頹':'頽', 
+  '頺':'頽', 
+  '穨':'頽', 
+  '骽':'腿', 
+  '蛻':'蜕', 
+  '呑':'吞', 
+  '臋':'臀', 
+  '畽':'疃', 
+  '拕':'拖', 
+  '挩':'捝', 
+  '託':'托', 
+  '脫':'脱', 
+  '槖':'橐', 
+  '駞':'駝', 
+  '鼍':'鼉', 
+  '漥':'窪', 
+  '鼃':'蛙', 
+  '膃':'腽', 
+  '韈':'襪', 
+  '韤':'襪', 
+  '翫':'玩', 
+  '盌':'碗', 
+  '輓':'挽', 
+  '尫':'尪', 
+  '尩':'尪', 
+  '亾':'亡', 
+  '兦':'亡', 
+  '徃':'往', 
+  '暀':'旺', 
+  '朢':'望', 
+  '溈':'潙', 
+  '偽':'僞', 
+  '蒍':'蔿', 
+  '為':'爲', 
+  '蝟':'猬', 
+  '衞':'衛', 
+  '餧':'喂', 
+  '餵':'喂', 
+  '溫':'温', 
+  '榲':'榅', 
+  '轀':'輼', 
+  '鰮':'鰛', 
+  '彣':'文', 
+  '蚉':'蚊', 
+  '螡':'蚊', 
+  '蟁':'蚊', 
+  '脗':'吻', 
+  '穏':'穩', 
+  '搵':'揾', 
+  '甕':'瓮', 
+  '罋':'瓮', 
+  '臥':'卧', 
+  '汙':'污', 
+  '汚':'污', 
+  '吳':'吴', 
+  '呉':'吴', 
+  '譕':'謨', 
+  '啎':'忤', 
+  '娬':'嫵', 
+  '摀':'捂', 
+  '儛':'舞', 
+  '悞':'誤', 
+  '悮':'誤', 
+  '隖':'塢', 
+  '霚':'霧', 
+  '晳':'晰', 
+  '厀':'膝', 
+  '煕':'熙', 
+  '熈':'熙', 
+  '譆':'嘻', 
+  '蓆':'席', 
+  '隟':'隙', 
+  '墍':'塈', 
+  '戱':'戲', 
+  '屭':'屓', 
+  '陿':'狹', 
+  '舝':'轄', 
+  '鎋':'轄', 
+  '杴':'鍁', 
+  '秈':'籼', 
+  '僊':'仙', 
+  '僲':'仙', 
+  '鱻':'鮮', 
+  '絃':'弦', 
+  '啣':'銜', 
+  '衘':'銜', 
+  '嫺':'嫻', 
+  '醎':'鹹', 
+  '癎':'癇', 
+  '鷴':'鷳', 
+  '尟':'鮮', 
+  '尠':'鮮', 
+  '箲':'筅', 
+  '顕':'顯', 
+  '羨':'羡', 
+  '廂':'厢', 
+  '鄕':'鄉', 
+  '瓨':'缸', 
+  '亯':'享', 
+  '曏':'嚮', 
+  '鯗':'鮝', 
+  '饟':'餉', 
+  '衖':'弄', 
+  '嚻':'囂', 
+  '篠':'筱', 
+  '効':'效', 
+  '咲':'笑', 
+  '傚':'效', 
+  '歗':'嘯', 
+  '蠍':'蝎', 
+  '脇':'脅', 
+  '衺':'邪', 
+  '擕':'携', 
+  '鞵':'鞋', 
+  '攜':'携', 
+  '冩':'寫', 
+  '缷':'卸', 
+  '洩':'泄', 
+  '炧':'灺', 
+  '絏':'紲', 
+  '夑':'燮', 
+  '爕':'燮', 
+  '蠏':'蟹', 
+  '顖':'囟', 
+  '郉':'邢', 
+  '倖':'幸', 
+  '莕':'荇', 
+  '兇':'凶', 
+  '洶':'汹', 
+  '胷':'胸', 
+  '敻':'夐', 
+  '髤':'髹', 
+  '潃':'滫', 
+  '繍':'綉', 
+  '繡':'綉', 
+  '鏽':'銹', 
+  '齅':'嗅', 
+  '虗':'虚', 
+  '虛':'虚', 
+  '噓':'嘘', 
+  '卹':'恤', 
+  '敍':'叙', 
+  '敘':'叙', 
+  '勗':'勖', 
+  '壻':'婿', 
+  '朂':'勖', 
+  '賉':'恤', 
+  '漵':'溆', 
+  '潊':'溆', 
+  '緖':'緒', 
+  '萲':'萱', 
+  '蕿':'萱', 
+  '諠':'喧', 
+  '藼':'萱', 
+  '蘐':'萱', 
+  '琁':'璇', 
+  '楥':'楦', 
+  '鞾':'靴', 
+  '斈':'學', 
+  '勲':'勛', 
+  '勳':'勛', 
+  '壎':'塤', 
+  '燻':'熏', 
+  '廵':'巡', 
+  '鱏':'鱘', 
+  '狥':'徇', 
+  '枒':'丫', 
+  '鵶':'鴉', 
+  '崕':'崖', 
+  '淊':'淹', 
+  '菸':'烟', 
+  '煙':'烟', 
+  '醃':'腌', 
+  '懕':'懨', 
+  '臙':'胭', 
+  '姸':'妍', 
+  '硏':'研', 
+  '嵒':'岩', 
+  '塩':'鹽', 
+  '揅':'研', 
+  '詽':'訮', 
+  '厳':'嚴', 
+  '顏':'顔', 
+  '巌':'岩', 
+  '簷':'檐', 
+  '巗':'岩', 
+  '巖':'岩', 
+  '兗':'兖', 
+  '揜':'掩', 
+  '鼴':'鼹', 
+  '彥':'彦', 
+  '隁':'堰', 
+  '鴈':'雁', 
+  '燄':'焰', 
+  '騐':'驗', 
+  '嚥':'咽', 
+  '艶':'艷', 
+  '灔':'灧', 
+  '贗':'贋', 
+  '讌':'宴', 
+  '醼':'宴', 
+  '鷰':'燕', 
+  '灎':'灧', 
+  '豓':'艷', 
+  '豔':'艷', 
+  '灩':'灧', 
+  '昜':'陽', 
+  '敭':'揚', 
+  '殀':'夭', 
+  '搖':'摇', 
+  '遙':'遥', 
+  '瑤':'瑶', 
+  '窯':'窑', 
+  '窰':'窑', 
+  '餚':'肴', 
+  '謠':'謡', 
+  '齩':'咬', 
+  '葯':'藥', 
+  '燿':'耀', 
+  '捓':'揶', 
+  '埜':'野', 
+  '亱':'夜', 
+  '曅':'曄', 
+  '爗':'燁', 
+  '弌':'壹', 
+  '吚':'咿', 
+  '毉':'醫', 
+  '迆':'迤', 
+  '冝':'宜', 
+  '宐':'宜', 
+  '迻':'移', 
+  '彛':'彝', 
+  '彜':'彝', 
+  '彞':'彝', 
+  '螘':'蟻', 
+  '肊':'臆', 
+  '栧':'枻', 
+  '異':'异', 
+  '瞖':'翳', 
+  '讛':'囈', 
+  '囙':'因', 
+  '垔':'堙', 
+  '陻':'堙', 
+  '隂':'陰', 
+  '婣':'姻', 
+  '慇':'殷', 
+  '瘖':'喑', 
+  '婬':'淫', 
+  '崯':'崟', 
+  '滛':'淫', 
+  '隠':'隱', 
+  '飮':'飲', 
+  '廕':'蔭', 
+  '甖':'罌', 
+  '鶑':'鶯', 
+  '鸎':'鶯', 
+  '頴':'穎', 
+  '暎':'映', 
+  '癕':'癰', 
+  '雝':'雍', 
+  '鰫':'鱅', 
+  '惥':'恿', 
+  '湧':'涌', 
+  '詠':'咏', 
+  '慂':'恿', 
+  '肬':'疣', 
+  '逰':'游', 
+  '遊':'游', 
+  '丣':'酉', 
+  '梄':'槱', 
+  '兪':'俞', 
+  '娛':'娱', 
+  '娯':'娱', 
+  '楡':'榆', 
+  '踰':'逾', 
+  '俁':'俣', 
+  '貐':'㺄', 
+  '喩':'喻', 
+  '庽':'寓', 
+  '焴':'煜', 
+  '瘉':'愈', 
+  '慾':'欲', 
+  '癒':'愈', 
+  '欝':'鬱', 
+  '鬰':'鬱', 
+  '寃':'冤', 
+  '貟':'員', 
+  '圎':'圓', 
+  '猨':'猿', 
+  '蝯':'猿', 
+  '悅':'悦', 
+  '鈅':'鑰', 
+  '粵':'粤', 
+  '閱':'閲', 
+  '嶽':'岳', 
+  '蒕':'蒀', 
+  '氳':'氲', 
+  '勻':'匀', 
+  '慍':'愠', 
+  '熅':'煴', 
+  '縕':'緼', 
+  '薀':'蕰', 
+  '醞':'醖', 
+  '蘊':'藴', 
+  '韻':'韵', 
+  '帀':'匝', 
+  '紥':'扎', 
+  '紮':'扎', 
+  '偺':'咱', 
+  '喒':'咱', 
+  '雑':'雜', 
+  '襍':'雜', 
+  '災':'灾', 
+  '烖':'灾', 
+  '簮':'簪', 
+  '儧':'攢', 
+  '攅':'攢', 
+  '賛':'贊', 
+  '鄼':'酇', 
+  '濽':'灒', 
+  '蹔':'暫', 
+  '瓉':'瓚', 
+  '讃':'贊', 
+  '讚':'贊', 
+  '贓':'贜', 
+  '塟':'葬', 
+  '蹧':'糟', 
+  '醩':'糟', 
+  '皁':'皂', 
+  '唕':'唣', 
+  '竃':'竈', 
+  '譟':'噪', 
+  '庂':'仄', 
+  '譛':'譖', 
+  '査':'查', 
+  '摣':'揸', 
+  '樝':'楂', 
+  '牐':'閘', 
+  '搾':'榨', 
+  '砦':'寨', 
+  '飦':'饘', 
+  '霑':'沾', 
+  '氊':'氈', 
+  '琖':'盞', 
+  '嶃':'嶄', 
+  '醆':'盞', 
+  '佔':'占', 
+  '麞':'獐', 
+  '炤':'照', 
+  '肈':'肇', 
+  '櫂':'棹', 
+  '晣':'晢', 
+  '輙':'輒', 
+  '讁':'謫', 
+  '淛':'浙', 
+  '珎':'珍', 
+  '眞':'真', 
+  '遉':'偵', 
+  '碪':'砧', 
+  '鍼':'針', 
+  '甽':'畎', 
+  '酖':'鴆', 
+  '敶':'陳', 
+  '鎭':'鎮', 
+  '爭':'争', 
+  '崢':'峥', 
+  '掙':'挣', 
+  '猙':'狰', 
+  '睜':'睁', 
+  '箏':'筝', 
+  '証':'證', 
+  '巵':'卮', 
+  '秖':'衹', 
+  '梔':'栀', 
+  '鼅':'蜘', 
+  '妷':'侄', 
+  '姪':'侄', 
+  '値':'值', 
+  '聀':'職', 
+  '鉄':'鐵', 
+  '蹠':'跖', 
+  '帋':'紙', 
+  '恉':'旨', 
+  '庢':'厔', 
+  '袟':'帙', 
+  '袠':'帙', 
+  '軽':'輕', 
+  '寘':'置', 
+  '誌':'志', 
+  '稺':'稚', 
+  '穉':'稚', 
+  '鈡':'鐘', 
+  '塚':'冢', 
+  '塜':'冢', 
+  '眾':'衆', 
+  '週':'周', 
+  '箒':'帚', 
+  '呪':'咒', 
+  '冑':'胄', 
+  '詶':'酬', 
+  '豬':'猪', 
+  '瀦':'潴', 
+  '櫫':'橥', 
+  '鼄':'蛛', 
+  '煑':'煮', 
+  '斸':'劚', 
+  '佇':'伫', 
+  '竚':'伫', 
+  '註':'注', 
+  '筯':'箸', 
+  '塼':'磚', 
+  '甎':'磚', 
+  '磗':'磚', 
+  '譔':'撰', 
+  '籑':'饌', 
+  '荘':'莊', 
+  '粧':'妝', 
+  '糚':'妝', 
+  '槕':'桌', 
+  '梲':'棁', 
+  '斲':'斫', 
+  '斵':'斫', 
+  '茲':'兹', 
+  '葘':'菑', 
+  '孶':'孳', 
+  '頿':'髭', 
+  '姉':'姊', 
+  '秄':'耔', 
+  '眥':'眦', 
+  '椶':'棕', 
+  '踨':'踪', 
+  '蹤':'踪', 
+  '騌':'鬃', 
+  '騣':'鬃', 
+  '鬉':'鬃', 
+  '揔':'总', 
+  '搃':'總', 
+  '傯':'偬', 
+  '摠':'总', 
+  '縂':'總', 
+  '鏓':'鍃', 
+  '糉':'粽', 
+  '糭':'粽', 
+  '郰':'鄹', 
+  '葅':'菹', 
+  '卆':'卒', 
+  '崪':'崒', 
+  '爼':'俎', 
+  '纉':'纘', 
+  '鑚':'鑽', 
+  '辠':'罪', 
+  '檇':'槜', 
+  '罇':'樽', 
+  '筰':'笮', 
+  '岝':'岞', 
+  '㑴':'侵', 
+  '㑺':'俊', 
+  '㒺':'罔', 
+  '㓕':'滅', 
+  '㓝':'刑', 
+  '㓨':'刺', 
+  '㓶':'鍥', 
+  '㓷':'劓', 
+  '㔻':'丕', 
+  '㕁':'却', 
+  '㕑':'厨', 
+  '㕔':'廳', 
+  '㕘':'參', 
+  '㕠':'雙', 
+  '㕥':'以', 
+  '㖁':'吝', 
+  '㘩':'坒', 
+  '㘭':'坳', 
+  '㘺':'垡', 
+  '㙟':'塱', 
+  '㙲':'壅', 
+  '㙻':'廛', 
+  '㛰':'婚', 
+  '㛴':'惱', 
+  '㝛':'宿', 
+  '㝠':'冥', 
+  '㝡':'最', 
+  '㝢':'宇', 
+  '㝱':'夢', 
+  '㝵':'礙', 
+  '㟁':'岸', 
+  '㟧':'崿', 
+  '㟭':'岷', 
+  '㟺':'嶁', 
+  '㟼':'嶅', 
+  '㠀':'島', 
+  '㠂':'嶅', 
+  '㠐':'嶠', 
+  '㠯':'以', 
+  '㠶':'帆', 
+  '㡌':'帽', 
+  '㡠':'幀', 
+  '㢘':'廉', 
+  '㢮':'驰', 
+  '㣽':'怒', 
+  '㤙':'恩', 
+  '㤰':'怍', 
+  '㥦':'愜', 
+  '㥫':'惇', 
+  '㦸':'戟', 
+  '㧖':'扼', 
+  '㧱':'拿', 
+  '㧼':'俵', 
+  '㨗':'捷', 
+  '㨣':'擁', 
+  '㨪':'晃', 
+  '㨿':'據', 
+  '㩀':'據', 
+  '㩃':'搴', 
+  '㩐':'扽', 
+  '㩗':'携', 
+  '㩙':'塞', 
+  '㩜':'攬', 
+  '㩦':'携', 
+  '㪚':'散', 
+  '㪟':'敦', 
+  '㪶':'斛', 
+  '㫄':'旁', 
+  '㫖':'旨', 
+  '㫤':'昶', 
+  '㬉':'暖', 
+  '㬪':'叠', 
+  '㭻':'棠', 
+  '㮄':'榜', 
+  '㮣':'概', 
+  '㮶':'槊', 
+  '㯐':'椭', 
+  '㯭':'櫓', 
+  '㯳':'檠', 
+  '㯷':'樸', 
+  '㯽':'檳', 
+  '㰍':'櫳', 
+  '㱃':'飲', 
+  '㱕':'歸', 
+  '㳂':'沿', 
+  '㳄':'涎', 
+  '㳒':'法', 
+  '㳬':'漩', 
+  '㴱':'深', 
+  '㵎':'澗', 
+  '㶳':'燼', 
+  '㷙':'煎', 
+  '㷟':'煺', 
+  '㷭':'烽', 
+  '㹅':'总', 
+  '㹖':'豢', 
+  '㹮':'貊', 
+  '㺃':'狗', 
+  '㻫':'珌', 
+  '㼝':'碗', 
+  '㽞':'留', 
+  '㿅':'癬', 
+  '㿜':'癟', 
+  '䃘':'硜', 
+  '䄍':'蜡', 
+  '䆫':'窗', 
+  '䈥':'筋', 
+  '䈰':'筲', 
+  '䊀':'糊', 
+  '䊷':'緇', 
+  '䊸':'紆', 
+  '䋎':'綻', 
+  '䋯':'綮', 
+  '䋲':'繩', 
+  '䍌':'瓿', 
+  '䍐':'罕', 
+  '䍑':'罕', 
+  '䍧':'牂', 
+  '䏣':'蛆', 
+  '䑛':'舐', 
+  '䒶':'天', 
+  '䔛':'苘', 
+  '䕃':'蔭', 
+  '䖏':'處', 
+  '䖤':'蜿', 
+  '䗬':'蜂', 
+  '䘏':'恤', 
+  '䘑':'脉', 
+  '䘚':'卒', 
+  '䘮':'喪', 
+  '䙑':'縗', 
+  '䛐':'詞', 
+  '䛡':'話', 
+  '䜘':'警', 
+  '䝔':'獾', 
+  '䝟':'猰', 
+  '䝿':'貴', 
+  '䞨':'跬', 
+  '䟆':'蹕', 
+  '䟎':'趲', 
+  '䠀':'蹚', 
+  '䠊':'剕', 
+  '䠞':'蹙', 
+  '䠥':'蹩', 
+  '䠶':'射', 
+  '䡰':'轂', 
+  '䢉':'農', 
+  '䢜':'歸', 
+  '䣱':'酗', 
+  '䥙':'鐩', 
+  '䥥':'鐮', 
+  '䧡':'墉', 
+  '䧿':'鵲', 
+  '䨠':'靄', 
+  '䨦':'雱', 
+  '䪘':'韙', 
+  '䬃':'颯', 
+  '䬠':'霏', 
+  '䬡':'翥', 
+  '䬴':'秣', 
+  '䭾':'馱', 
+  '䯗':'髀', 
+  '䯧':'廎', 
+  '䰛':'鬲', 
+  '䰞':'煮', 
+  '䰟':'魂', 
+  '䰿':'鮀', 
+  '䱷':'漁', 
+  '䳇':'鵡', 
+  '䳒':'鳶', 
+  '䳘':'鵝', 
+  '䳨':'凰', 
+  '䳺':'鵪', 
+  '䳼':'鷗', 
+  '䴵':'餅', 
+  '䴸':'麩', 
+  '䵷':'蛙', 
+  '䶊':'衄', 
+  '䶧':'咬', 
+  '䶵':'篪', 
+  '𠅙':'亮', 
+  '𠆕':'𢆣', 
+  '𠇮':'命', 
+  '𠌂':'傘', 
+  '𠌸':'偋', 
+  '𠎝':'愆', 
+  '𠎱':'愆', 
+  '𠏉':'幹', 
+  '𠐷':'愆', 
+  '𠑘':'傎', 
+  '𠒋':'凶', 
+  '𠕂':'再', 
+  '𠕅':'再', 
+  '𠕋':'册', 
+  '𠖇':'冥', 
+  '𠛬':'刑', 
+  '𠜶':'腦', 
+  '𠜾':'劂', 
+  '𠞰':'剿', 
+  '𠤷':'匜', 
+  '𠦃':'卅', 
+  '𠩄':'所', 
+  '𠪱':'歷', 
+  '𠪾':'歷', 
+  '𠫍':'屓', 
+  '𠫤':'吝', 
+  '𠫹':'單', 
+  '𠭯':'揸', 
+  '𠰸':'咽', 
+  '𠴟':'咩', 
+  '𠴰':'咱', 
+  '𠵦':'忤', 
+  '𠷿':'咋', 
+  '𠸝':'喋', 
+  '𠻳':'嗽', 
+  '𠼟':'圙', 
+  '𡍮':'垂', 
+  '𡎖':'塤', 
+  '𡎰':'墀', 
+  '𡏲':'塈', 
+  '𡐨':'野', 
+  '𡔏':'壅', 
+  '𡙇':'缺', 
+  '𡚁':'弊', 
+  '𡚤':'奰', 
+  '𡚾':'姝', 
+  '𡜟':'妊', 
+  '𡝩':'妖', 
+  '𡞵':'㛟', 
+  '𡡅':'裊', 
+  '𡢘':'孕', 
+  '𡣕':'嬪', 
+  '𡧢':'肉', 
+  '𡨘':'冤', 
+  '𡨥':'寇', 
+  '𡪢':'寢', 
+  '𡫞':'逾', 
+  '𡬧':'叔', 
+  '𡬶':'尋', 
+  '𡭗':'爾', 
+  '𡵉':'屼', 
+  '𡺲':'峻', 
+  '𡻕':'歲', 
+  '𡼲':'嶔', 
+  '𡼳':'嶒', 
+  '𡽗':'嶮', 
+  '𡽪':'徽', 
+  '𢄐':'幪', 
+  '𢇍':'絶', 
+  '𢊸':'廪', 
+  '𢒜':'彪', 
+  '𢘂':'怒', 
+  '𢘍':'怫', 
+  '𢙢':'恐', 
+  '𢙵':'吝', 
+  '𢝊':'憂', 
+  '𢠸':'憚', 
+  '𢠾':'憩', 
+  '𢢣':'懈', 
+  '𢣢':'勰', 
+  '𢥞':'忡', 
+  '𢧵':'截', 
+  '𢨾':'戾', 
+  '𢩄':'戽', 
+  '𢬸':'括', 
+  '𢮥':'操', 
+  '𢱭':'拜', 
+  '𢳟':'捅', 
+  '𢷏':'撲', 
+  '𢷤':'擯', 
+  '𢷬':'搗', 
+  '𢹬':'擁', 
+  '𢹲':'捃', 
+  '𢺕':'擾', 
+  '𢻃':'豉', 
+  '𢻻':'啓', 
+  '𢾖':'杜', 
+  '𢿌':'夐', 
+  '𢿛':'驅', 
+  '𣀢':'燮', 
+  '𣀮':'攘', 
+  '𣄚':'旞', 
+  '𣈶':'暅', 
+  '𣎜':'孕', 
+  '𣏂':'殺', 
+  '𣒣':'芒', 
+  '𣔳':'柝', 
+  '𣕹':'𣓉', 
+  '𣙜':'榷', 
+  '𣟄':'柝', 
+  '𣡌':'蘖', 
+  '𣡛':'柩', 
+  '𣣷':'嗤', 
+  '𣩵':'殯', 
+  '𣪕':'簋', 
+  '𣪩':'殺', 
+  '𣯶':'毿', 
+  '𣰋':'氍', 
+  '𣰽':'氍', 
+  '𣶂':'往', 
+  '𣶉':'戽', 
+  '𣷽':'浸', 
+  '𣹢':'涵', 
+  '𣺌':'渺', 
+  '𤅩':'灘', 
+  '𤇆':'烟', 
+  '𤋮':'熙', 
+  '𤍐':'煺', 
+  '𤍠':'熱', 
+  '𤎩':'燧', 
+  '𤏶':'爊', 
+  '𤑔':'爇', 
+  '𤑾':'燧', 
+  '𤛉':'轄', 
+  '𤛘':'牤', 
+  '𤧚':'璁', 
+  '𤨏':'瑣', 
+  '𤮀':'瓷', 
+  '𤮲':'瓮', 
+  '𤰕':'畎', 
+  '𤰜':'畝', 
+  '𤰝':'畎', 
+  '𤱈':'畝', 
+  '𤱊':'留', 
+  '𤵐':'痦', 
+  '𤸇':'癃', 
+  '𤺥':'瘩', 
+  '𥁕':'昷', 
+  '𥄅':'昈', 
+  '𥄨':'瞅', 
+  '𥈤':'睫', 
+  '𥊲':'瞠', 
+  '𥊼':'瞠', 
+  '𥎊':'矜', 
+  '𥐗':'砭', 
+  '𥒚':'硇', 
+  '𥓁':'硇', 
+  '𥓼':'磲', 
+  '𥔀':'訇', 
+  '𥔵':'磁', 
+  '𥕦':'磙', 
+  '𥛱':'祊', 
+  '𥛻':'祊', 
+  '𥠺':'蒀', 
+  '𥤚':'秋', 
+  '𥦗':'窗', 
+  '𥨥':'竄', 
+  '𥭗':'篷', 
+  '𥲻':'纂', 
+  '𥳑':'簡', 
+  '𥵃':'盞', 
+  '𥿉':'袜', 
+  '𦂳':'緊', 
+  '𦃂':'緊', 
+  '𦄲':'縮', 
+  '𦄿':'纆', 
+  '𦆈':'纂', 
+  '𦆯':'繽', 
+  '𦈱':'瓷', 
+  '𦉆':'碴', 
+  '𦉥':'瓮', 
+  '𦉾':'網', 
+  '𦊑':'罶', 
+  '𦊱':'挂', 
+  '𦊾':'罘', 
+  '𦋀':'罥', 
+  '𦍑':'羌', 
+  '𦍩':'羖', 
+  '𦐌':'翃', 
+  '𦐧':'羿', 
+  '𦒒':'翹', 
+  '𦓗':'黻', 
+  '𦓞':'黼', 
+  '𦕈':'眇', 
+  '𦕻':'聰', 
+  '𦙍':'胤', 
+  '𦙷':'尻', 
+  '𦜕':'跽', 
+  '𦝫':'腰', 
+  '𦡈':'臃', 
+  '𦢤':'臢', 
+  '𦦙':'舉', 
+  '𦧇':'舐', 
+  '𦨼':'𦨳', 
+  '𦬼':'苶', 
+  '𦱍':'菻', 
+  '𦲬':'菻', 
+  '𦵉':'萐', 
+  '𦵏':'葬', 
+  '𦵒':'萩', 
+  '𧂀':'藐', 
+  '𧅰':'護', 
+  '𧈫':'虹', 
+  '𧍃':'蜚', 
+  '𧒒':'蜂', 
+  '𧓉':'蠐', 
+  '𧖴':'脉', 
+  '𧘂':'衝', 
+  '𧙊':'裀', 
+  '𧥢':'誇', 
+  '𧦽':'診', 
+  '𧪌':'誱', 
+  '𧫮':'𧩱', 
+  '𧫲':'諞', 
+  '𧯆':'豁', 
+  '𧹞':'赧', 
+  '𨂿':'崴', 
+  '𨄮':'摔', 
+  '𨆌':'蹯', 
+  '𨇃':'躦', 
+  '𨑭':'徙', 
+  '𨓈':'适', 
+  '𨔡':'遁', 
+  '𨕞':'遷', 
+  '𨖈':'遥', 
+  '𨘷':'邈', 
+  '𨙻':'那', 
+  '𨚗':'那', 
+  '𨛬':'裴', 
+  '𨝣':'鄙', 
+  '𨫼':'鏊', 
+  '𨭛':'鑞', 
+  '𨮘':'鑌', 
+  '𨱗':'長', 
+  '𨶏':'闕', 
+  '𨸏':'阜', 
+  '𨻶':'隙', 
+  '𨽻':'隸', 
+  '𨾦':'鴟', 
+  '𨿡':'鶉', 
+  '𩀤':'難', 
+  '𩀱':'雙', 
+  '𩉇':'靨', 
+  '𩋋':'韉', 
+  '𩎢':'弢', 
+  '𩓐':'脖', 
+  '𩗗':'颶', 
+  '𩚖':'糅', 
+  '𩝫':'漿', 
+  '𩟄':'饎', 
+  '𩣏':'桀', 
+  '𩣚':'駓', 
+  '𩥎':'騖', 
+  '𩥦':'騖', 
+  '𩪯':'髕', 
+  '𩯭':'鬢', 
+  '𩰾':'沸', 
+  '𪂎':'鶉', 
+  '𪃩':'鶖', 
+  '𪇔':'鷀', 
+  '𪋻':'塵', 
+  '𪏡':'斢', 
+  '𪔛':'鼗', 
+  '𪕡':'鼯', 
+  '𪖙':'齁', 
+  '𪘏':'齪', 
+  '𪜭':'個', 
+  '𪡌':'咨', 
+  '𪨷':'岩', 
+  '𪬑':'𫺬', 
+  '𫇛':'櫓', 
+  '𫞟':'爲', 
+  '𫩴':'哚', 
+  '𫮰':'墻', 
+  '𫲙':'媠', 
+  '𬛜':'臏', 
+  '𭀀':'儐', 
+  '𭁵':'寇', 
+  '𭥦':'昴', 
+  '𭰊':'洇', 
+  '𮀶':'研', 
+  '𮍧':'叟', 
+  '𮡯':'鉚', 
+  '𰩇':'窌', 
+  '𰱵':'蓿', 
+  '𱄔':'駰'
+};
+const MAP_OLD={
+  '㘭':'坳', 
+  '㝛':'宿', 
+  '㡌':'帽', 
+  '㤙':'恩', 
+  '㨗':'捷', 
+  '㫖':'旨', 
+  '䝔':'獾', 
+  '䟎':'趲', 
+  '丟':'丢', 
+  '亙':'亘', 
+  '侶':'侣', 
+  '俁':'俣', 
+  '倂':'併', 
+  '値':'值', 
+  '倶':'俱', 
+  '偸':'偷', 
+  '偼':'倢', 
+  '偽':'僞', 
+  '儧':'儹', 
+  '兌':'兑', 
+  '兎':'兔', 
+  '兗':'兖', 
+  '內':'内', 
+  '兪':'俞', 
+  '冊':'册', 
+  '冐':'冒', 
+  '冑':'胄', 
+  '凈':'净', 
+  '別':'别', 
+  '刪':'删', 
+  '刴':'剁', 
+  '剎':'刹', 
+  '剝':'剥', 
+  '勻':'匀', 
+  '卋':'世', 
+  '卽':'即', 
+  '収':'收', 
+  '吳':'吴', 
+  '吶':'呐', 
+  '吿':'告', 
+  '呂':'吕', 
+  '呉':'吴', 
+  '呑':'吞', 
+  '喚':'唤', 
+  '喞':'唧', 
+  '喩':'喻', 
+  '嘷':'嗥', 
+  '噐':'器', 
+  '噑':'嗥', 
+  '噓':'嘘', 
+  '囙':'因', 
+  '囪':'囱', 
+  '囬':'回', 
+  '圎':'圓', 
+  '圗':'圖', 
+  '垜':'垛', 
+  '塡':'填', 
+  '墍':'塈', 
+  '夘':'卯', 
+  '奐':'奂', 
+  '奧':'奥', 
+  '姍':'姗', 
+  '姸':'妍', 
+  '娛':'娱', 
+  '娯':'娱', 
+  '婾':'媮', 
+  '媫':'婕', 
+  '媯':'嬀', 
+  '媼':'媪', 
+  '嫰':'嫩', 
+  '嬤':'嬷', 
+  '孶':'孳', 
+  '宮':'宫', 
+  '寏':'𡨡', 
+  '寜':'寧', 
+  '尙':'尚', 
+  '尫':'尪', 
+  '屆':'届', 
+  '屛':'屏', 
+  '崢':'峥', 
+  '巓':'巔', 
+  '帲':'帡', 
+  '幤':'幣', 
+  '幷':'并', 
+  '廏':'廄', 
+  '廽':'廻', 
+  '弒':'弑', 
+  '強':'强', 
+  '弻':'弼', 
+  '弾':'彈', 
+  '彔':'录', 
+  '彚':'彙', 
+  '彞':'彝', 
+  '彥':'彦', 
+  '恆':'恒', 
+  '悅':'悦', 
+  '悞':'悮', 
+  '愌':'𢚾', 
+  '愼':'慎', 
+  '慍':'愠', 
+  '戩':'戬', 
+  '戱':'戯', 
+  '戶':'户', 
+  '戸':'户', 
+  '抝':'拗', 
+  '拋':'抛', 
+  '挩':'捝', 
+  '掙':'挣', 
+  '換':'换', 
+  '揷':'插', 
+  '搖':'摇', 
+  '搵':'揾', 
+  '撃':'擊', 
+  '敓':'敚', 
+  '敘':'叙', 
+  '敻':'夐', 
+  '旣':'既', 
+  '昬':'昏', 
+  '晉':'晋', 
+  '暤':'皞', 
+  '暭':'皞', 
+  '曁':'暨', 
+  '朮':'术', 
+  '朶':'朵', 
+  '枴':'柺', 
+  '柵':'栅', 
+  '栁':'柳', 
+  '梲':'棁', 
+  '楡':'榆', 
+  '榲':'榅', 
+  '槪':'概', 
+  '槹':'槔', 
+  '橫':'横', 
+  '櫕':'欑', 
+  '歛':'斂', 
+  '歿':'殁', 
+  '殼':'殻', 
+  '毀':'毁', 
+  '氳':'氲', 
+  '氷':'冰', 
+  '汚':'污', 
+  '沒':'没', 
+  '涗':'涚', 
+  '涙':'淚', 
+  '淥':'渌', 
+  '淨':'浄', 
+  '淸':'清', 
+  '渙':'涣', 
+  '溈':'潙', 
+  '溫':'温', 
+  '滾':'滚', 
+  '漑':'溉', 
+  '漵':'溆', 
+  '潄':'漱', 
+  '濽':'灒', 
+  '為':'爲', 
+  '煕':'熙', 
+  '煥':'焕', 
+  '熅':'煴', 
+  '爭':'争', 
+  '猙':'狰', 
+  '瑍':'𤥺', 
+  '瑤':'瑶', 
+  '瓉':'瓚', 
+  '甁':'瓶', 
+  '產':'産', 
+  '畒':'畝', 
+  '痲':'麻', 
+  '瘓':'痪', 
+  '皐':'皋', 
+  '皡':'皞', 
+  '盜':'盗', 
+  '盫':'盦', 
+  '眞':'真', 
+  '睜':'睁', 
+  '硏':'研', 
+  '祿':'禄', 
+  '禿':'秃', 
+  '稅':'税', 
+  '窰':'窑', 
+  '窽':'窾', 
+  '筓':'笄', 
+  '箏':'筝', 
+  '粵':'粤', 
+  '絕':'絶', 
+  '綠':'緑', 
+  '緖':'緒', 
+  '緪':'縆', 
+  '縕':'緼', 
+  '繋':'繫', 
+  '纉':'纘', 
+  '羋':'芈', 
+  '羨':'羡', 
+  '翶':'翱', 
+  '翺':'翱', 
+  '耼':'聃', 
+  '肻':'肯', 
+  '脫':'脱', 
+  '腁':'胼', 
+  '膃':'腽', 
+  '臥':'卧', 
+  '茍':'苟', 
+  '茲':'兹', 
+  '荊':'荆', 
+  '蒍':'蔿', 
+  '蒕':'蒀', 
+  '薀':'蕰', 
+  '蘊':'藴', 
+  '虛':'虚', 
+  '蛻':'蜕', 
+  '蜖':'蛔', 
+  '袞':'衮', 
+  '詽':'訮', 
+  '說':'説', 
+  '謠':'謡', 
+  '讃':'讚', 
+  '豣':'豜', 
+  '豬':'猪', 
+  '貟':'員', 
+  '賛':'贊', 
+  '跥':'跺', 
+  '躱':'躲', 
+  '輧':'軿', 
+  '轀':'輼', 
+  '逥':'迴', 
+  '逬':'迸', 
+  '遙':'遥', 
+  '郉':'邢', 
+  '郞':'郎', 
+  '鄕':'鄉', 
+  '鄼':'酇', 
+  '醞':'醖', 
+  '銳':'鋭', 
+  '錄':'録', 
+  '鎭':'鎮', 
+  '鎻':'鎖', 
+  '鐡':'鐵', 
+  '鑚':'鑽', 
+  '閱':'閲', 
+  '靑':'青', 
+  '靜':'静', 
+  '靣':'面', 
+  '頹':'頽', 
+  '頺':'頽', 
+  '顏':'顔', 
+  '顚':'顛', 
+  '飮':'飲', 
+  '餠':'餅', 
+  '騈':'駢', 
+  '髙':'高', 
+  '髠':'髡', 
+  '髪':'髮', 
+  '鰮':'鰛', 
+  '麼':'麽', 
+  '黃':'黄', 
+  '鼔':'鼓', 
+  '郎':'郎', 
+  '𠅙':'亮', 
+  '𠆕':'𢆣', 
+  '𠌸':'偋', 
+  '𠕋':'册', 
+  '𠛬':'刑', 
+  '𠰸':'咽', 
+  '𠸝':'啑', 
+  '𡎖':'塤', 
+  '𡏲':'塈', 
+  '𡞵':'㛟', 
+  '𡨘':'冤', 
+  '𡨥':'寇', 
+  '𡫞':'踰', 
+  '𢊸':'廩', 
+  '𢙢':'恐', 
+  '𢨾':'戾', 
+  '𢩄':'戽', 
+  '𢻻':'啟', 
+  '𣀢':'燮', 
+  '𣈶':'暅', 
+  '𣕹':'𣓉', 
+  '𣙜':'榷', 
+  '𣪩':'殺', 
+  '𤇆':'烟', 
+  '𤟭':'㚟‌', 
+  '𤨏':'瑣', 
+  '𤱈':'畝', 
+  '𥁕':'昷', 
+  '𥄅':'昈', 
+  '𥈤':'睫', 
+  '𥓁':'硇', 
+  '𥔵':'磁', 
+  '𥕦':'磙', 
+  '𥠺':'蒀', 
+  '𥨥':'竄', 
+  '𦄲':'縮', 
+  '𦋀':'罥', 
+  '𦐧':'羿', 
+  '𦕻':'聰', 
+  '𦢤':'臢', 
+  '𦨼':'𦨳', 
+  '𦱍':'菻', 
+  '𦲬':'菻', 
+  '𦵉':'萐', 
+  '𧅰':'護', 
+  '𧙊':'裀', 
+  '𧪌':'誱', 
+  '𧫮':'𧩱', 
+  '𧫲':'諞', 
+  '𨇃':'躦', 
+  '𨕞':'遷', 
+  '𨝣':'鄙', 
+  '𪇔':'鷀', 
+  '𪏡':'斢', 
+  '𪜭':'個', 
+  '𪡌':'咨', 
+  '𪬑':'𫺬', 
+  '𫞟':'爲', 
+  '𫩴':'哚', 
+  '𫮰':'墻', 
+  '𭥦':'昴', 
+  '𭰊':'洇', 
+  '𮀶':'揅', 
+  '𮍧':'叟', 
+  '𮡯':'鉚', 
+  '𰩇':'窌', 
+  '𰱵':'蓿', 
+  '𱄔':'駰'
+};
+function convert(text,mode){
+  const map=mode==='t2new'?MAP_OLD:Object.assign({},MAP_COMMON,MAP_OLD);
+  let hits=0;
+  const out=[...text].map(ch=>{
+    if(map[ch]&&map[ch]!==ch){hits++;return '<span class="hit">'+map[ch]+'</span>';}
+    return ch;
+  }).join('');
+  return {out,hits};
+}
+const tryIn=document.getElementById('tryIn'),tryOut=document.getElementById('tryOut'),hitCount=document.getElementById('hitCount');
+let mode='t2gov';
+function runConvert(){
+  const r=convert(tryIn.value,mode);
+  tryOut.innerHTML=r.out||'<span style="color:var(--ink-4)">（输出将显示于此）</span>';
+  hitCount.textContent=r.hits;
+}
+tryIn.addEventListener('input',runConvert);
+document.querySelectorAll('.chip[data-mode]').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.chip[data-mode]').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');mode=b.dataset.mode;runConvert();
+  });
+});
+runConvert();
+
+/* 滚动显现 */
+const io=new IntersectionObserver(es=>{
+  es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});
+},{threshold:.12});
+document.querySelectorAll('.rv').forEach(el=>io.observe(el));
+</script>
 </body>
 </html>
