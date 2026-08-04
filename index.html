@@ -119,7 +119,6 @@ header{
   mix-blend-mode:multiply;will-change:transform;transform-origin:50% 50%;
   animation-duration:14s;animation-timing-function:ease-in-out;animation-iteration-count:infinite;
 }
-.shrimp use{filter:url(#inkRough)}
 .shrimp-1{top:-64px;left:-84px;animation-name:shrimpRoute1;animation-duration:13.5s}
 .shrimp-3{top:158px;left:-108px;width:132px;opacity:.5;animation-name:shrimpRoute3;animation-duration:15.5s;animation-delay:-4s}
 .shrimp-4{top:176px;right:-112px;width:136px;opacity:.52;animation-name:shrimpRoute4;animation-duration:16s;animation-delay:-7s}
@@ -495,13 +494,13 @@ footer.site::before{
       <stop offset="0" stop-color="#191c20" stop-opacity=".4"/><stop offset="1" stop-color="#191c20" stop-opacity="0"/>
     </linearGradient>
     <symbol id="shrimpInk" viewBox="0 0 200 130">
-      <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" filter="url(#inkRough)">
-        <g class="shrimp-tail">
+      <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <g class="shrimp-tail" filter="url(#inkRough)">
           <animateTransform attributeName="transform" type="rotate" values="-5 38 73;5 38 73;-5 38 73" keyTimes="0;.5;1" dur=".95s" repeatCount="indefinite"/>
           <path d="M37 73 L17 62 C27 59 36 61 43 67" fill="currentColor" opacity=".15" stroke-width="2.2"/>
           <path d="M37 74 L18 83 C28 85 37 82 43 76" fill="currentColor" opacity=".15" stroke-width="2.2"/>
         </g>
-        <g class="shrimp-body">
+        <g class="shrimp-body" filter="url(#inkRough)">
           <animateTransform attributeName="transform" type="rotate" values="-1.3 92 68;1.2 92 68;-1.3 92 68" keyTimes="0;.5;1" dur="1.6s" repeatCount="indefinite"/>
           <path d="M34 74 C49 52 74 43 97 50 C116 56 132 66 151 80 C132 84 112 79 95 69 C75 58 55 61 34 74Z"
                 fill="currentColor" opacity=".13" stroke="currentColor" stroke-width="2.7"/>
@@ -517,22 +516,24 @@ footer.site::before{
         </g>
         <g class="shrimp-antennae">
           <animateTransform attributeName="transform" type="rotate" values="-1.8 142 72;2.2 142 72;-1.8 142 72" keyTimes="0;.5;1" dur="2.4s" repeatCount="indefinite"/>
-          <path d="M139 68 C162 47 181 29 197 16" stroke-width="1.4" opacity=".62"/>
-          <path d="M143 71 C167 64 185 67 198 74" stroke-width="1.25" opacity=".55"/>
-          <path d="M141 75 C163 86 179 101 190 116" stroke-width="1.3" opacity=".55"/>
+          <path d="M139 68 L198 34" stroke-width="1.4" opacity=".62" shape-rendering="geometricPrecision"/>
+          <g filter="url(#inkRough)">
+            <path d="M143 71 C167 64 185 67 198 74" stroke-width="1.25" opacity=".55"/>
+            <path d="M141 75 C163 86 179 101 190 116" stroke-width="1.3" opacity=".55"/>
+          </g>
         </g>
-        <g class="shrimp-legs-back">
+        <g class="shrimp-legs-back" filter="url(#inkRough)">
           <animateTransform attributeName="transform" type="rotate" values="-4 80 74;5 80 74;-4 80 74" keyTimes="0;.5;1" dur=".78s" repeatCount="indefinite"/>
           <path d="M66 73 C60 84 56 96 55 109" stroke-width="1.4" opacity=".55"/>
           <path d="M78 72 C73 84 70 97 71 110" stroke-width="1.35" opacity=".5"/>
           <path d="M91 72 C88 84 88 96 91 107" stroke-width="1.3" opacity=".48"/>
         </g>
-        <g class="shrimp-legs-front">
+        <g class="shrimp-legs-front" filter="url(#inkRough)">
           <animateTransform attributeName="transform" type="rotate" values="4 112 76;-5 112 76;4 112 76" keyTimes="0;.5;1" dur=".78s" repeatCount="indefinite"/>
           <path d="M105 75 C104 86 106 96 111 105" stroke-width="1.25" opacity=".45"/>
           <path d="M119 78 C120 88 124 96 130 102" stroke-width="1.2" opacity=".42"/>
         </g>
-        <g class="shrimp-swimmerets">
+        <g class="shrimp-swimmerets" filter="url(#inkRough)">
           <animateTransform attributeName="transform" type="rotate" values="-5 70 82;5 70 82;-5 70 82" keyTimes="0;.5;1" dur="1.05s" repeatCount="indefinite"/>
           <path d="M61 79 C56 83 52 86 47 88 M75 80 C70 85 66 89 61 92 M89 80 C85 86 82 91 78 96" stroke-width="1.1" opacity=".38"/>
         </g>
