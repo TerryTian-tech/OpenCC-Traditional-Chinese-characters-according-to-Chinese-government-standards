@@ -600,7 +600,7 @@ footer.site::before{
     <div class="sec-head rv">
       <span class="sec-juan">卷 一</span>
       <h2>牛刀小试</h2>
-      <p>输入一段繁体文本，感受「非标准字形 → 规范繁体」的转换效果。网页演示仅内置少量常见映射，完整能力请下载桌面程序。</p>
+      <p>输入一段繁体文本，感受「非标准字形 → 规范繁体」的转换效果。</p>
       <svg class="brush-line" viewBox="0 0 120 14"><path d="M4,8 C30,4 60,11 116,6"/><path class="thin" d="M20,11 C50,13 80,10 104,12"/></svg>
     </div>
     <div class="try-box rv">
@@ -622,7 +622,7 @@ footer.site::before{
       </div>
       <div class="try-foot">
         <span>本次转换共命中 <b id="hitCount">0</b> 处字形（朱砂色标出）。</span>
-        <span>演示字表为节选 · 完整方案见 <a href="https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards" target="_blank" rel="noopener">开源仓库</a></span>
+        <span id="engineNote">正在加载 opencc-wasm 引擎……</span>
       </div>
     </div>
   </div>
@@ -3277,22 +3277,102 @@ const MAP_OLD={
   '𰱵':'蓿', 
   '𱄔':'駰'
 };
-function convert(text,mode){
-  const map=mode==='t2new'?MAP_OLD:Object.assign({},MAP_COMMON,MAP_OLD);
-  let hits=0;
-  const out=[...text].map(ch=>{
-    if(map[ch]&&map[ch]!==ch){hits++;return '<span class="hit">'+map[ch]+'</span>';}
-    return ch;
-  }).join('');
-  return {out,hits};
-}
-const tryIn=document.getElementById('tryIn'),tryOut=document.getElementById('tryOut'),hitCount=document.getElementById('hitCount');
+/* 在线体验：
+   「繁体 → 规范繁体」由 opencc-wasm 提供演示（完整 t2cngov 方案，浏览器本地运行）；
+   「仅旧字形 → 新字形」暂无对应 wasm 配置，沿用页面内置节选字表演示。 */
+const OPENCC_ESM="https://cdn.jsdelivr.net/npm/opencc-wasm@0.13.0/dist/esm/index.js";
+const REPO_URL="https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards";
+const tryIn=document.getElementById('tryIn'),tryOut=document.getElementById('tryOut'),
+      hitCount=document.getElementById('hitCount'),engineNote=document.getElementById('engineNote');
 let mode='t2gov';
-function runConvert(){
-  const r=convert(tryIn.value,mode);
+let govConvert=null,govState='loading'; // loading | ready | failed
+
+function escapeHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function renderResult(r){
   tryOut.innerHTML=r.out||'<span style="color:var(--ink-4)">（输出将显示于此）</span>';
   hitCount.textContent=r.hits;
 }
+
+/* 局部映射转换（内置节选字表，逐字高亮） */
+function convertByMap(text,map){
+  let hits=0;
+  const out=[...text].map(ch=>{
+    if(map[ch]&&map[ch]!==ch){hits++;return '<span class="hit">'+escapeHtml(map[ch])+'</span>';}
+    return escapeHtml(ch);
+  }).join('');
+  return {out,hits};
+}
+
+/* 字符级 LCS diff：高亮 opencc 输出中被改写/新增的字 */
+function diffConvert(src,dst){
+  const a=[...src],b=[...dst];
+  const hitIdx=new Set();
+  if(a.length&&b.length&&a.length*b.length<=1500000){
+    const m=a.length,n=b.length;
+    const dp=Array.from({length:m+1},()=>new Uint16Array(n+1));
+    for(let i=m-1;i>=0;i--)for(let j=n-1;j>=0;j--)
+      dp[i][j]=a[i]===b[j]?dp[i+1][j+1]+1:Math.max(dp[i+1][j],dp[i][j+1]);
+    let i=0,j=0;
+    while(i<m&&j<n){
+      if(a[i]===b[j]){i++;j++;}
+      else if(dp[i+1][j]>=dp[i][j+1]){i++;}
+      else{hitIdx.add(j);j++;}
+    }
+    while(j<n){hitIdx.add(j);j++;}
+  }else{
+    const n=Math.min(a.length,b.length);
+    for(let k=0;k<n;k++)if(a[k]!==b[k])hitIdx.add(k);
+    for(let k=n;k<b.length;k++)hitIdx.add(k);
+  }
+  const out=b.map((ch,i)=>hitIdx.has(i)?'<span class="hit">'+escapeHtml(ch)+'</span>':escapeHtml(ch)).join('');
+  return {out,hits:hitIdx.size};
+}
+
+let seq=0;
+async function runConvert(){
+  const text=tryIn.value,mySeq=++seq;
+  if(mode==='t2new'){
+    engineNote.innerHTML='更多转换方案见 <a href="'+REPO_URL+'" target="_blank" rel="noopener">开源仓库</a>';
+    renderResult(convertByMap(text,MAP_OLD));
+    return;
+  }
+  if(govState==='loading'){
+    engineNote.textContent='正在加载 opencc-wasm 引擎（首次需下载字典，约数 MB）……';
+    tryOut.innerHTML='<span style="color:var(--ink-4)">引擎加载中，请稍候……</span>';
+    hitCount.textContent='0';
+    return;
+  }
+  if(govState==='failed'){
+    engineNote.innerHTML='opencc-wasm 引擎加载失败，已回退至内置节选字表 · 完整方案见 <a href="'+REPO_URL+'" target="_blank" rel="noopener">开源仓库</a>';
+    renderResult(convertByMap(text,Object.assign({},MAP_COMMON,MAP_OLD)));
+    return;
+  }
+  engineNote.textContent='由 opencc-wasm 提供演示';
+  try{
+    const result=await govConvert(text);
+    if(mySeq!==seq)return; // 已有更新的输入，丢弃过期结果
+    renderResult(diffConvert(text,result));
+  }catch(err){
+    console.warn('opencc-wasm 转换失败，回退内置字表：',err);
+    govState='failed';runConvert();
+  }
+}
+
+/* 异步加载引擎，就绪/失败后自动重渲染 */
+(async()=>{
+  try{
+    const mod=await import(OPENCC_ESM);
+    const OpenCC=mod.default||mod.OpenCC; // 动态 import 得到的是命名空间，需取默认导出
+    govConvert=OpenCC.Converter({config:'t2cngov'});
+    await govConvert(''); // 预热，确保字典下载就绪
+    govState='ready';
+  }catch(err){
+    console.warn('opencc-wasm 加载失败，回退内置字表：',err);
+    govState='failed';
+  }
+  runConvert();
+})();
+
 tryIn.addEventListener('input',runConvert);
 document.querySelectorAll('.chip[data-mode]').forEach(b=>{
   b.addEventListener('click',()=>{
