@@ -37,7 +37,7 @@ def detect_encoding(file_path, log_callback=None, force_encoding=None):
     if encoding == 'GB2312' and confidence < 0.95:
         try:
             # 尝试用GB18030解码整个文件
-            decoded = raw_data.decode('gb18030', errors='strict')
+            decoded = raw_data.decode('GB18030', errors='strict')
             if any(ord(char) > 0x9FFF for char in decoded):  # 检查是否包含扩展汉字
                 log("检测到GB18030扩展字符，使用GB18030编码")
                 return 'gb18030'
@@ -50,9 +50,9 @@ def detect_encoding(file_path, log_callback=None, force_encoding=None):
             pass
 
     # 如果置信度低或者是常见误判情况，尝试中文编码
-    if confidence < 0.7 or encoding in ['ISO-8859-1', 'Windows-1252', 'ascii']:
+    if confidence < 0.7 or encoding in ['ISO-8859-1', 'Windows-1252', 'ASCII']:
         # 尝试常见中文编码，优先尝试GB18030
-        chinese_encodings = ['gb18030', 'gbk', 'gb2312', 'big5']
+        chinese_encodings = ['GB18030', 'GBK', 'GB2312']
         for enc in chinese_encodings:
             try:
                 # 修复：改为全文检测，而不是只检测前1000字节
@@ -74,7 +74,7 @@ def detect_encoding(file_path, log_callback=None, force_encoding=None):
         # 如果严格解码没有匹配到中文字符，使用宽松模式再试一次
         # 某些文件可能混有少量非标准字节（如BOM头、控制字符），
         # strict 模式下会抛异常导致整个编码被跳过
-        for enc in ['gb18030', 'gbk']:
+        for enc in ['GB18030', 'GBK']:
             try:
                 decoded = raw_data.decode(enc, errors='replace')
                 has_chinese = any(
@@ -100,11 +100,11 @@ def detect_encoding(file_path, log_callback=None, force_encoding=None):
             except Exception:
                 continue
 
-    # 如果检测到UTF-8但置信度不高，尝试GB18030
+    # 如果检测到utf-8但置信度不高，尝试GB18030
     if encoding == 'utf-8' and confidence < 0.9:
         try:
             # 尝试用GB18030解码
-            decoded = raw_data.decode('gb18030', errors='strict')
+            decoded = raw_data.decode('GB18030', errors='strict')
             # 检查是否包含中文字符
             if any('\u4e00' <= char <= '\u9fff' for char in decoded):
                 log("检测到GB18030编码的中文字符，使用GB18030编码")
@@ -117,13 +117,18 @@ def detect_encoding(file_path, log_callback=None, force_encoding=None):
         encoding = 'utf-8'
 
     # 如果是GB2312，优先使用GB18030以确保兼容性
-    if encoding.lower() in ['gb2312', 'gbk']:
+    if encoding.lower() in ['GB2312', 'GBK']:
         log(f"将{encoding}升级为GB18030以确保更好的兼容性")
         return 'gb18030'
 
+    # 如果是Big5，优先使用cp950以确保兼容性
+    if encoding == 'Big5':
+        log(f"将{encoding}升级为cp950以确保更好的兼容性")
+        return 'cp950'
+
     # 最终回退：如果chardet检测到的是非中文编码且置信度不高，
     # 强制使用gb18030作为最终回退（中文文件最常见的ANSI编码）
-    if encoding.lower() not in ['utf-8', 'utf-8-sig', 'gb18030', 'gbk', 'gb2312', 'big5']:
+    if encoding.lower() not in ['utf-8', 'UTF-8-SIG', 'GB18030', 'GBK', 'GB2312', 'Big5']:
         if confidence < 0.5:
             log(f"chardet检测到非中文编码'{encoding}'（置信度{confidence:.4%}），回退到GB18030")
             return 'gb18030'
@@ -138,9 +143,9 @@ def safe_read_file(file_path, encoding, log_callback=None):
             log_callback(msg)
 
     # 优先尝试GB18030，因为它兼容GB2312和GBK
-    if encoding.lower() in ['gb2312', 'gbk']:
+    if encoding.lower() in ['GB2312', 'GBK']:
         try:
-            with open(file_path, 'r', encoding='gb18030', errors='strict') as f:
+            with open(file_path, 'r', encoding='GB18030', errors='strict') as f:
                 return f.read()
         except UnicodeDecodeError as e:
             log(f"GB18030严格模式读取失败: {e}，尝试原编码")
@@ -160,13 +165,13 @@ def safe_read_file(file_path, encoding, log_callback=None):
                 else:
                     # 如果没有中文字符，可能是编码错误，尝试GB18030
                     log("读取内容不包含中文字符，尝试GB18030编码")
-                    with open(file_path, 'r', encoding='gb18030', errors='ignore') as f2:
+                    with open(file_path, 'r', encoding='GB18030', errors='ignore') as f2:
                         return f2.read()
         except Exception as e:
             log(f"读取文件时发生错误: {e}")
             # 最后尝试使用GB18030
             try:
-                with open(file_path, 'r', encoding='gb18030', errors='ignore') as f:
+                with open(file_path, 'r', encoding='GB18030', errors='ignore') as f:
                     return f.read()
             except Exception as e2:
                 log(f"最终读取失败: {e2}")
