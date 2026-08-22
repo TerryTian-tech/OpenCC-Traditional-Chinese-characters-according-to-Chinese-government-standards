@@ -1,10 +1,9 @@
-chardet==7.4.3
-opencc-py==1.4.1
-jieba==0.42.1
-PySide6==6.11.1
-PySide6_Addons==6.11.1
-PySide6_Essentials==6.11.1
+chardet==7.6.0
+opencc==1.4.1
+PySide6==6.11.2
+PySide6_Addons==6.11.2
+PySide6_Essentials==6.11.2
 python_docx==1.2.0
 certifi==2026.7.22
 beautifulsoup4==4.15.0
-lxml==6.1.1
+lxml==6.1.2
