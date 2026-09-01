@@ -160,6 +160,14 @@ class ConversionWorker(QThread):
                     ):
                         success_count += 1
 
+                elif file_ext == '.md':
+                    if convert_txt_file(
+                        file_path, self.output_folder, self.conversion_type,
+                        lambda msg: self.log_message.emit(msg),
+                        lambda: self._is_cancelled
+                    ):
+                        success_count += 1
+
                 elif file_ext == '.srt':
                     if convert_srt_file(
                         file_path, self.output_folder, self.conversion_type,
@@ -275,6 +283,17 @@ class ConversionWorker(QThread):
                     return True
                 else:
                     return False
+            elif file_ext == '.md':
+                result = convert_txt_file(
+                    self.input_path, self.output_folder, self.conversion_type,
+                    lambda msg: self.log_message.emit(msg),
+                    lambda: self._is_cancelled
+                )
+                if result:
+                    self.progress_updated.emit(100, "转换完成!")
+                    return True
+                else:
+                    return False
             elif file_ext == '.srt':
                 result = convert_srt_file(
                     self.input_path, self.output_folder, self.conversion_type,
@@ -320,7 +339,7 @@ class ConversionWorker(QThread):
                 else:
                     return False
             else:
-                self.log_message.emit("错误：不支持的文件格式，仅支持doc、docx、txt、srt、ass、ssa、lrc、epub文件")
+                self.log_message.emit("错误：不支持的文件格式，仅支持doc、docx、txt、md、srt、ass、ssa、lrc、epub文件")
                 return False
 
         # 处理文件夹
@@ -333,11 +352,11 @@ class ConversionWorker(QThread):
                     return False
 
                 file_ext = os.path.splitext(f)[1].lower()
-                if file_ext in ['.doc', '.docx', '.txt', '.srt', '.ass', '.ssa', '.lrc', '.epub']:
+                if file_ext in ['.doc', '.docx', '.txt', '.md', '.srt', '.ass', '.ssa', '.lrc', '.epub']:
                     supported_files.append(f)
 
             if not supported_files:
-                self.log_message.emit("在指定文件夹中未找到支持的doc、docx、txt、srt、ass、ssa、lrc、epub文件")
+                self.log_message.emit("在指定文件夹中未找到支持的doc、docx、txt、md、srt、ass、ssa、lrc、epub文件")
                 return False
 
             self.log_message.emit(f"找到 {len(supported_files)} 个文件待处理")
@@ -416,6 +435,14 @@ class ConversionWorker(QThread):
                         lambda: self._is_cancelled,
                         self.force_encoding,
                         self.segment_mode
+                    ):
+                        success_count += 1
+
+                elif file_ext == '.md':
+                    if convert_txt_file(
+                        file_path, self.output_folder, self.conversion_type,
+                        lambda msg: self.log_message.emit(msg),
+                        lambda: self._is_cancelled
                     ):
                         success_count += 1
 
@@ -1300,7 +1327,7 @@ class ModernUI(QMainWindow):
         elif choice == QMessageBox.StandardButton.No:  # 文件
             paths, _ = QFileDialog.getOpenFileNames(
                 self, "选择文件", "",
-                "文档文件 (*.doc *.docx *.txt *.srt *.ass *.ssa *.lrc *.epub);;所有文件 (*)"
+                "文档文件 (*.doc *.docx *.txt *.md *.srt *.ass *.ssa *.lrc *.epub);;所有文件 (*)"
             )
             if paths:
                 self.selected_files = paths
