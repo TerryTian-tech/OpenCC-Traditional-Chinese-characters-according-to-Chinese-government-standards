@@ -109,7 +109,7 @@ cp -rf ../jieba/* jieba_dict/
 python3 main.py
 ```
 
-结巴分词支持词典位于jieba目录下，其中现代汉语分词词典来自[结巴分词仓库](https://github.com/fxsjy/jieba)，古汉语分词默认词典使用了[Dingyuan Wang](https://github.com/gumblex)制作的[jiebazhc](https://github.com/The-Orizon/nlputils)。Windows 10/11 上如需结巴分词功能，请前往OpenCC官方仓库[下载并提取](https://github.com/BYVoid/OpenCC/releases/download/ver.1.4.1/OpenCC-1.4.1-windows-x64-portable.zip) bin\plugins下的文件复制到你本地的OpenCC目录下（可运行 `pip show opencc` 命令查看OpenCC所在位置，Linux无需此步）。
+结巴分词支持词典位于jieba目录下，其中现代汉语分词词典来自[结巴分词仓库](https://github.com/fxsjy/jieba)，古汉语分词默认词典使用了[Dingyuan Wang](https://github.com/gumblex)制作的[jiebazhc](https://github.com/The-Orizon/nlputils)。Windows 10/11 上如需结巴分词功能，请前往OpenCC官方仓库[下载并提取](https://github.com/BYVoid/OpenCC/releases/download/ver.1.4.2/OpenCC-1.4.2-windows-x64-portable.zip) bin\plugins下的文件复制到你本地的OpenCC目录下（可运行 `pip show opencc` 命令查看OpenCC所在位置，Linux无需此步）。
 
 > [!NOTE]
 >在Windows系统上，部分情况下转换doc文档时会出现错误提示“AttributeError: module ‘win32com.gen_py.00020905-0000-4B30-A977-D214852036FFx0x3x0’ has no attribute ‘CLSIDToClassMap’”。如出现该错误，可尝试删除C:\Users\administrator（注：此处为你的计算机用户名，默认名称为administrator或admin，如有微软账户一般则为微软账户名）\AppData\Local\Temp\gen_py\3.13(注：此处为你安装的Python版本号)下的缓存文件夹00020905-0000-4B30-A977-D214852036FFx0x3x0，再重新运行转换器。如果错误提示代号并非00020905-0000-4B30-A977-D214852036FFx0x3x0，亦可照此操作以排除故障。
@@ -137,7 +137,7 @@ python3 main.py
 
 | 组件 | 版本 | 说明 |
 |-----|------|-----|
-| [OpenCC](https://github.com/BYVoid/OpenCC) | 1.4.1 | 开源中文繁简转换库 |
+| [OpenCC](https://github.com/BYVoid/OpenCC) | 1.4.2 | 开源中文繁简转换库 |
 | [LLMCC](https://github.com/TerryTian-tech/LLMCC) | 0.2.5 | 「规范繁体字形转换器」AI繁简转换独立模块 |
 | [Python-docx](https://github.com/python-openxml/python-docx) | 1.2.0 | Word 文档处理库 |
 | [Pywin32](https://github.com/mhammond/pywin32) | 312 | Python for Win32 扩展 |
@@ -145,7 +145,7 @@ python3 main.py
 | [Chardet](https://github.com/chardet/chardet) | 7.6.0 | 字符编码检测库 |
 | [Certifi](https://pypi.org/project/certifi/) | 2026.7.22 | Mozilla 根证书库 |
 | [Beautifulsoup4](https://pypi.org/project/beautifulsoup4/) | 4.15.0 | HTML和XML文档解析库 |
-| [lxml](https://github.com/lxml/lxml) | 6.1.2 | 大型文档和XML处理库 |
+| [lxml](https://github.com/lxml/lxml) | 6.1.3 | 大型文档和XML处理库 |
 
 ## Contributors 开源贡献者
 
