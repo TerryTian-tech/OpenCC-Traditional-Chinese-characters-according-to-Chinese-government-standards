@@ -20,7 +20,7 @@ OpenCC开放中文转换 - 将混杂不同标准的繁体字形转换为《通�
 
 本仓库仍以《通用规范汉字表》为依据，提供基于[OpenCC](https://github.com/BYVoid/OpenCC)转换引擎的、从港/台标准以及各种标准和旧字形混杂的“繁体”到《通用规范汉字表》的规范繁体字形转换方案。从简体到《通用规范汉字表》的规范繁体字形的转换，在Github上已有成熟方案：[OpenCC 简繁转换之通用规范汉字标准](https://github.com/amorphobia/opencc-tonggui)。本仓库亦提供了基于OpenCC原版转换字表和词典、按照《通用规范汉字表》要求修订后的繁⇄简转换字表和词典，以满足基本的繁⇄简双向转换需要。具体差异可以查看[转换方案设计说明](https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/blob/main/doc/%E3%80%8A%E9%80%9A%E7%94%A8%E8%A7%84%E8%8C%83%E6%B1%89%E5%AD%97%E8%A1%A8%E3%80%8B%E8%A7%84%E8%8C%83%E7%B9%81%E4%BD%93%E8%BD%AC%E6%8D%A2%E6%96%B9%E6%A1%88%E8%AE%BE%E8%AE%A1%E8%AF%B4%E6%98%8E.md)。
 
-本仓库同时提供了一个Python转换程序，能够实现Word文档（DOC/DOCX）、文本文件（TXT）、电子出版文件（EPUB）和字幕文件（SRT、ASS/SSA、LRC）的繁体字形转换。该程序亦以[OpenCC](https://github.com/BYVoid/OpenCC)作为转换引擎。该程序的更新历史可参见[「规范繁体字形转换器」更新日志](https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/blob/main/doc/「规范繁体字形转换器」更新历史日志.md)。
+本仓库同时提供了一个Python转换程序，能够实现Word文档（DOC/DOCX）、文本文件（TXT、MD）、电子出版文件（EPUB）和字幕文件（SRT、ASS/SSA、LRC）的繁体字形转换。该程序亦以[OpenCC](https://github.com/BYVoid/OpenCC)作为转换引擎。该程序的更新历史可参见[「规范繁体字形转换器」更新日志](https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/blob/main/doc/「规范繁体字形转换器」更新历史日志.md)。
 
 ## 使用说明
 > [!NOTE]
@@ -95,7 +95,7 @@ $null = New-Item -ItemType Directory -Path $dest -Force; Copy-Item -Path "..\jie
 python main.py
 ```
 
-在 Linux 发行版下，可使用 “transformer-linux” 文件夹下的转换程序。该程序仅支持 docx 文档、txt 文件、EPUB和字幕文件的繁体字形转换，暂不支持doc文档的转换。使用者需部署好 Python 运行环境，然后打开终端，执行以下命令安装依赖并运行：
+在 Linux 发行版下，可使用 “transformer-linux” 文件夹下的转换程序。该程序仅支持 docx 文档、文本文件、EPUB和字幕文件的繁体字形转换，暂不支持doc文档的转换。使用者需部署好 Python 运行环境，然后打开终端，执行以下命令安装依赖并运行：
 
 ```bash
 git clone https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards.git

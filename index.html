@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>规范繁体字形转换器 · 基于《通用规范汉字表》及其附件 1 </title>
-<meta name="description" content="基于 OpenCC 引擎，将港/台标准及各种旧字形混杂的繁体文本，转换为《通用规范汉字表》（2013）规范繁体字形。支持 Word、TXT、EPUB、字幕文件，Windows / Linux 全平台。">
+<meta name="description" content="基于 OpenCC 引擎，将港/台标准及各种旧字形混杂的繁体文本，转换为《通用规范汉字表》（2013）规范繁体字形。支持 Word、文本、EPUB、字幕文件，Windows / Linux 全平台。">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;600;700;900&display=swap" rel="stylesheet">
@@ -587,7 +587,7 @@ footer.site::before{
     </div>
     <div class="hero-stats">
       <div class="stat"><b>肆</b><span>转换方案</span></div>
-      <div class="stat"><b>柒类</b><span>支持文件格式</span></div>
+      <div class="stat"><b>捌类</b><span>支持文件格式</span></div>
       <div class="stat"><b>1.4.2</b><span>OpenCC 引擎</span></div>
       <div class="stat"><b>全平台</b><span>Win / Linux</span></div>
     </div>
@@ -639,10 +639,10 @@ footer.site::before{
       <svg class="brush-line" viewBox="0 0 120 14"><path d="M4,7 C34,11 66,3 116,8"/><path class="thin" d="M16,11 C46,9 82,13 108,10"/></svg>
     </div>
     <div class="cards">
-      <div class="card rv"><div class="glyph">檔</div><h3>多格式批量转换</h3><p>支持 Word（DOC / DOCX，可保留格式）、TXT、EPUB 电子书与 SRT、ASS / SSA、LRC 字幕文件，可选定文件夹内文件批量处理。</p></div>
+      <div class="card rv"><div class="glyph">檔</div><h3>多格式批量转换</h3><p>支持 Word（DOC / DOCX，可保留格式）、文本文件（TXT / MD）、EPUB 电子书与 SRT、ASS / SSA、LRC 字幕文件，可选定文件夹内文件批量处理。</p></div>
       <div class="card rv d1"><div class="glyph">智</div><h3>AI 繁简转换模块</h3><p>内置独立 AI 转换模块，与传统 OpenCC 引擎互为补充，处理棘手的一对多、语境用字。</p></div>
       <div class="card rv d2"><div class="glyph">詞</div><h3>结巴分词加持</h3><p>离线转换前可选开启结巴分词，含古汉语专用词典，显著提升歧义字的转换准确度。</p></div>
-      <div class="card rv d3"><div class="glyph">碼</div><h3>智能编码检测</h3><p>自动检测文本文件（TXT）编码，亦可强制按指定编码读取；与其他文件编码逻辑独立处理，互不干扰。</p></div>
+      <div class="card rv d3"><div class="glyph">碼</div><h3>智能编码检测</h3><p>自动检测文本文件编码，亦可强制按指定编码读取；与其他文件编码逻辑独立处理，互不干扰。</p></div>
       <div class="card rv"><div class="glyph">窗</div><h3>现代图形界面</h3><p>基于 PySide6 构建，支持明暗主题、转换中途取消、在线检查更新，开箱即用，无需命令行。</p></div>
       <div class="card rv d1"><div class="glyph">臺</div><h3>全平台覆盖</h3><p>提供 Windows 11 / 10 / 7 安装包，Deepin / GXDE 提供 deb 包；源码在 Github 完全公开，亦支持从源码自行部署。</p></div>
       <div class="card rv d2"><div class="glyph">入</div><h3>输入法级输出</h3><p>转换方案可接入小狼毫（Rime）输入法，让输入法直接打出《通用规范汉字表》标准繁体字形。</p></div>
@@ -817,7 +817,7 @@ footer.site::before{
     <div class="dl-grid">
       <div class="steps rv">
         <div class="step"><div><h4>下载安装包</h4><p>点击下载 <a href="https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/releases/download/Transformer(1.4.2)/Traditional-Chinese-Transformer_1.4.2_setup_for_Win10+.zip" target="_blank" rel="noopener"> Windows 10/11 安装包</a> 或 <a href="https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/releases/download/Transformer(1.4.2)/Traditional-Chinese-Transformer_1.4.2_setup_for_Win7.zip" target="_blank" rel="noopener"> Windows 7 安装包</a> ，以及 <a href="https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/releases/download/Transformer(1.4.2)/traditional-chinese-transformer_1.4.2.deb" target="_blank" rel="noopener"> Deepin / GXDE 系统的安装包</a>。若下载慢或无法访问，请尝试从<a href="https://gitee.com/terrytian-tech/tonggui-traditional-chinese/releases" target="_blank" rel="noopener"> Gitee 镜像站点</a> 下载。</p></div></div>
-        <div class="step"><div><h4>选择文件与转换模式</h4><p>拖入 Word / TXT / EPUB / 字幕文件，选择「繁体→规范繁体」等四种模式之一，可按需开启结巴分词。</p></div></div>
+        <div class="step"><div><h4>选择文件与转换模式</h4><p>拖入 Word / 文本 / EPUB / 字幕文件，选择「繁体→规范繁体」等四种模式之一，可按需开启结巴分词。</p></div></div>
         <div class="step"><div><h4>一键转换，校对成稿</h4><p>转换结果按原格式输出；出版稿件建议再行人工三审三校。</p></div></div>
         <div class="step"><div><h4>从源码部署和自定义开发</h4><p><code>git clone</code> 仓库后进入 <code>transformer</code>（Windows）或 <code>transformer-linux</code> 目录，安装依赖并拷贝 t2gov 方案即可运行。</p></div></div>
       </div>
