@@ -136,6 +136,9 @@ python3 main.py
 
 * [Mainland_Traditional_Chinese_Converter](https://github.com/Xebec33/Mainland_Traditional_Chinese_Converter)  维护者：[Xebec33](https://github.com/Xebec33)
 
+* 
+[OpenCC Gov For Rime](https://github.com/soizo/OpenCCGovForRime)  维护者：[SoizoKtantas](https://github.com/soizo)
+
 ## 「规范繁体字形转换器」使用的第三方库
 
 | 组件 | 版本 | 说明 |
