@@ -128,7 +128,7 @@ python3 main.py
 
 * [opencc-wasm](https://github.com/frankslin/OpenCC) （[npm](https://www.npmjs.com/package/opencc-wasm)、[演示页面](https://opencc.js.org/)）  维护者：[FranksLin](https://github.com/frankslin)
 
-* [OpenCC File Converter（简繁通转换大师）](https://github.com/TerryTian-tech/OpenCC-DocxConverter)  维护者：[TerryTian-tech](https://github.com/TerryTian-tech)
+* [Oh My OpenCC（简繁通转换大师）](https://github.com/TerryTian-tech/oh-my-opencc)  维护者：[TerryTian-tech](https://github.com/TerryTian-tech)
 
 * [regexp-replace-lists-for-TextPro](https://github.com/Fusyong/regexp-replace-lists-for-TextPro)  维护者：[Huang Fusyong](https://github.com/Fusyong)
 
