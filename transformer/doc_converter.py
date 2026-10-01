@@ -124,6 +124,7 @@ class DocxTraditionalSimplifiedConverter:
         - 't2gov_keep_simp': 繁体转规范繁体，但保留文档内原有简体字
         - 't2new_keep_simp': 繁体旧字形转新字形，但保留文档内原有简体字和异体字
         - 't2s': 繁体转简体
+        - 'v2s': 只将异体字转为简体字
         - 's2t': 简体转规范繁体
         """
         self.log_callback = log_callback

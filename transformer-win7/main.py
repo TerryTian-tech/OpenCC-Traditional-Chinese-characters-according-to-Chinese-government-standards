@@ -1162,6 +1162,7 @@ class ModernUI(QMainWindow):
         self.type_combo.addItem("繁体转规范繁体，但保留文档内原有简体字")
         self.type_combo.addItem("繁体旧字形转新字形，但保留文档内原有简体字和异体字")
         self.type_combo.addItem("繁体转简体")
+        self.type_combo.addItem("只将异体字转为简体字")
         self.type_combo.addItem("简体转规范繁体")
         type_layout.addWidget(self.type_combo)
         options_layout.addLayout(type_layout)
@@ -1397,6 +1398,7 @@ class ModernUI(QMainWindow):
             "繁体转规范繁体，但保留文档内原有简体字": "t2gov_keep_simp",
             "繁体旧字形转新字形，但保留文档内原有简体字和异体字": "t2new_keep_simp",
             "繁体转简体": "t2s",
+            "只将异体字转为简体字": "v2s",
             "简体转规范繁体": "s2t"
         }
         conversion_type = conversion_types[self.type_combo.currentText()]
