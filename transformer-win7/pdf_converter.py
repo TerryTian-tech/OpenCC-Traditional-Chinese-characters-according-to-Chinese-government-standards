@@ -4,8 +4,48 @@ import re
 from typing import Callable, List, Optional, Tuple, Union
 
 from opencc import OpenCC
-from pdf_oxide import DocumentBuilder, EmbeddedFont, PdfDocument
 from PIL import Image, ImageFont
+
+# ---------------------------------------------------------------------------
+# PDF 引擎（纯 Python，Win7 可用）
+#
+# 读取侧 pdfminer.six：字符级坐标 / 字体名 / 字号 / 颜色 / 矢量路径 / 图片；
+# 写出侧 reportlab：文字排版、TTF/TTC 子集内嵌、线条 / 矩形 / 图片绘制。
+# pypdf 可选，作为复杂编码图片（CCITT 传真等）的解码兜底。
+# 替代原 pdf-oxide 方案（Rust 二进制轮子，Win7 旧 Python 上不可用）。
+# ---------------------------------------------------------------------------
+
+try:
+    from pdfminer.converter import PDFPageAggregator
+    from pdfminer.image import (LITERALS_DCT_DECODE, LITERALS_JPX_DECODE,
+                                LITERAL_DEVICE_CMYK, LITERAL_DEVICE_GRAY,
+                                LITERAL_DEVICE_RGB,
+                                LITERAL_INLINE_DEVICE_GRAY,
+                                LITERAL_INLINE_DEVICE_RGB)
+    from pdfminer.layout import LTChar, LTContainer, LTCurve, LTImage, LTRect
+    from pdfminer.pdfdocument import PDFDocument as _MinerDocument
+    from pdfminer.pdfdocument import PDFPasswordIncorrect
+    from pdfminer.pdfinterp import PDFPageInterpreter, PDFResourceManager
+    from pdfminer.pdfpage import PDFPage
+    from pdfminer.pdfparser import PDFParser
+    from pdfminer.utils import apply_matrix_pt, mult_matrix
+    _PDFMINER_IMPORT_ERROR = ""
+except ImportError as _e:
+    _PDFMINER_IMPORT_ERROR = str(_e)
+
+try:
+    from reportlab.lib.utils import ImageReader
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.pdfgen.canvas import Canvas
+    _REPORTLAB_IMPORT_ERROR = ""
+except ImportError as _e:
+    _REPORTLAB_IMPORT_ERROR = str(_e)
+
+try:
+    from pypdf import PdfReader
+except ImportError:
+    PdfReader = None
 
 # ---------------------------------------------------------------------------
 # 输出 PDF 使用的内嵌字体查找（按风格类别组织，尽量保留原文的字体区分度）
@@ -18,7 +58,7 @@ _CJK_SANS_CANDIDATES = [
     r"C:\Windows\Fonts\msyh.ttc",
     r"C:\Windows\Fonts\Deng.ttf",
     # Linux：单 face 的 SC 版 otf 优先——CJK 合集 .ttc 的第 0 个 face 是
-    # JP 变体，而 EmbeddedFont/PIL 都无法指定 face，会把部分汉字渲染成日式写法
+    # JP 变体，而 reportlab/PIL 都只会取第 0 个 face，会把部分汉字渲染成日式写法
     "/usr/share/fonts/noto/NotoSansSC-Regular.otf",
     "/usr/share/fonts/opentype/noto/NotoSansSC-Regular.otf",
     "/usr/share/fonts/noto-cjk/NotoSansSC-Regular.otf",
@@ -28,7 +68,7 @@ _CJK_SANS_CANDIDATES = [
     "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
     "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
     "/usr/share/fonts/wqy-microhei/wqy-microhei.ttc",
-    "/usr/share/fonts/wenquanyi/wqy-microhei/wqy-microhei.ttc",
+    "/usr/share/fonts/wenquanyi/wqy-microhei.ttc",
     "/usr/share/fonts/wqy-zenhei/wqy-zenhei.ttc",
     # macOS
     "/System/Library/Fonts/PingFang.ttc",
@@ -187,16 +227,32 @@ def _classify_font_category(font_name: Optional[str]) -> str:
     return 'sans'
 
 
+# reportlab 只能内嵌 TrueType 轮廓的字体：sfnt 版本 0x00010000 / 'true'（ttf）
+# 与 'ttcf'（合集）；CFF 轮廓的 .otf（版本 'OTTO'）与 woff 无法处理。
+# 用文件头魔数探测，避免为每个候选做完整解析。
+_FONT_MAGIC_OK = (b"\x00\x01\x00\x00", b"true", b"ttcf")
+
+
+def _probe_font_file(path: str) -> bool:
+    """判断字体文件是否为 reportlab 可内嵌的 TrueType/TrueType 集合"""
+    try:
+        with open(path, "rb") as f:
+            return f.read(4) in _FONT_MAGIC_OK
+    except OSError:
+        return False
+
+
 def _find_first_loadable_font(candidates: List[str], log: Callable[[str], None]) -> Optional[str]:
-    """在候选列表中找到第一个存在且可被 EmbeddedFont 加载的字体文件"""
+    """
+    在候选列表中找到第一个存在且可被内嵌的字体文件。
+    CFF .otf 候选（Linux 上 noto 单 face 版）会被静默跳过，
+    由列表中排在其后的 .ttc 候选补位。
+    """
     for path in candidates:
         if not os.path.isfile(path):
             continue
-        try:
-            EmbeddedFont.from_file(path)
+        if _probe_font_file(path):
             return path
-        except Exception:
-            log(f"警告：字体文件无法加载，已跳过 - {path}")
     return None
 
 
@@ -327,7 +383,7 @@ def _iter_font_files() -> List[str]:
 
 def _find_font_by_scan(key: str, log: Callable[[str], None]) -> Optional[str]:
     """
-    按文件名模式在字体目录中查找可加载的字体。
+    按文件名模式在字体目录中查找可内嵌的字体。
     模式按优先级依次尝试；常规体模式会排除 Bold/Light 等变体，
     西文字体额外排除其他文字体系的字体文件。
     """
@@ -347,11 +403,8 @@ def _find_font_by_scan(key: str, log: Callable[[str], None]) -> Optional[str]:
                 continue
             if not fnmatch.fnmatch(name, pattern):
                 continue
-            try:
-                EmbeddedFont.from_file(path)
+            if _probe_font_file(path):
                 return path
-            except Exception:
-                continue
     return None
 
 
@@ -445,90 +498,227 @@ def _split_by_script(text: str) -> List[Tuple[str, bool]]:
 
 
 # ---------------------------------------------------------------------------
+# 读取引擎（pdfminer.six）：解析页面内容为字符 / 矢量 / 图片记录
+# ---------------------------------------------------------------------------
+
+def _color_to_rgb(color) -> Tuple[float, float, float]:
+    """
+    把 pdfminer 的颜色对象（灰度标量 / RGB / CMYK 元组，或 None）转成 RGB 三元组。
+    无法理解的颜色空间按黑色处理。
+    """
+    if color is None:
+        return (0.0, 0.0, 0.0)
+    if isinstance(color, (int, float)):
+        v = min(max(float(color), 0.0), 1.0)
+        return (v, v, v)
+    if isinstance(color, (tuple, list)):
+        try:
+            comps = [min(max(float(v), 0.0), 1.0) for v in color]
+        except (TypeError, ValueError):
+            return (0.0, 0.0, 0.0)
+        if len(comps) == 1:
+            return (comps[0], comps[0], comps[0])
+        if len(comps) == 3:
+            return (comps[0], comps[1], comps[2])
+        if len(comps) == 4:  # CMYK
+            c, m, y, k = comps
+            return (1.0 - min(1.0, c + k), 1.0 - min(1.0, m + k),
+                    1.0 - min(1.0, y + k))
+    return (0.0, 0.0, 0.0)
+
+
+def _char_is_bold(font_name: Optional[str]) -> bool:
+    """根据字符的字体名判断是否加粗（名称含 Bold/Black/Heavy）"""
+    name = (font_name or '').lower()
+    return ('bold' in name) or ('black' in name) or ('heavy' in name)
+
+
+def _inverse_matrix(m) -> Optional[Tuple[float, float, float, float, float, float]]:
+    """仿射矩阵求逆；退化（行列式为 0）返回 None"""
+    a, b, c, d, e, f = m
+    det = a * d - b * c
+    if abs(det) < 1e-12:
+        return None
+    ia = d / det
+    ib = -b / det
+    ic = -c / det
+    id_ = a / det
+    return (ia, ib, ic, id_,
+            -(ia * e + ic * f), -(ib * e + id_ * f))
+
+
+def _norm_bbox(points) -> Tuple[float, float, float, float]:
+    """把若干坐标点归一化为 (x0, y0, x1, y1) 包围盒"""
+    xs = [p[0] for p in points]
+    ys = [p[1] for p in points]
+    return (min(xs), min(ys), max(xs), max(ys))
+
+
+def _walk_layout(item, content: dict, transform) -> None:
+    """
+    深度优先遍历 pdfminer 的布局树，收集四类记录：
+    字符 {text,x,y,adv,font,size,color,bold}、线段、矩形、图片。
+
+    pdfminer 的坐标在“设备空间”（页面旋转 /Rotate 与媒体框平移已应用）。
+    transform 为 None 时原样记录；为逆矩阵时把坐标变换回用户空间——
+    旋转页的文字经逆变换后恢复水平方向，与未旋转页同一路径处理。
+    旋转（非直立）字符与无法映射到 Unicode 的字符 (cid:xxx) 计数后跳过。
+    """
+    if isinstance(item, LTChar):
+        content['char_total'] += 1
+        text = item.get_text() or ''
+        if not text or text.startswith('(cid:'):
+            content['skipped_cid'] += 1
+            return
+        if any(ord(c) < 32 for c in text):
+            content['skipped_cid'] += 1
+            return
+        m = item.matrix
+        if transform is not None:
+            m = mult_matrix(m, transform)
+            upright = (m[1] == 0.0 and m[2] == 0.0 and m[0] * m[3] > 0)
+        else:
+            upright = item.upright
+        if not upright:
+            content['skipped_rotated'] += 1
+            return
+        content['chars'].append({
+            'text': text,
+            'x': float(m[4]),
+            'y': float(m[5]),
+            'adv': float(item.adv or 0.0),
+            'font': item.fontname or '',
+            'size': float(item.size or 0.0),
+            'color': _color_to_rgb(item.graphicstate.ncolor
+                                   if item.graphicstate is not None else None),
+            'bold': _char_is_bold(item.fontname),
+        })
+        return
+    if isinstance(item, LTImage):
+        corners = [(item.bbox[0], item.bbox[1]), (item.bbox[2], item.bbox[3])]
+        if transform is not None:
+            corners = [apply_matrix_pt(transform, p) for p in corners]
+        bbox = _norm_bbox(corners)
+        if bbox[2] > bbox[0] and bbox[3] > bbox[1]:
+            content['images'].append({'name': item.name, 'bbox': bbox, 'item': item})
+        return
+    if isinstance(item, LTRect):
+        corners = [(item.bbox[0], item.bbox[1]), (item.bbox[2], item.bbox[3])]
+        if transform is not None:
+            corners = [apply_matrix_pt(transform, p) for p in corners]
+        content['rects'].append({
+            'bbox': _norm_bbox(corners),
+            'stroke': bool(item.stroke),
+            'fill': bool(item.fill),
+            'width': float(item.linewidth or 0.0),
+            'scolor': _color_to_rgb(item.stroking_color),
+            'ncolor': _color_to_rgb(item.non_stroking_color),
+        })
+        return
+    if isinstance(item, LTCurve):  # 含 LTLine；仅重画“直线段”路径
+        if not item.stroke or len(item.pts) < 2:
+            return
+        ops = [seg[0] for seg in (item.original_path or [])]
+        if not ops or any(op not in ('m', 'l', 'h') for op in ops):
+            return  # 贝塞尔曲线无法按线段重画，跳过
+        color = _color_to_rgb(item.stroking_color)
+        width = float(item.linewidth or 0.0)
+        pts = item.pts
+        if transform is not None:
+            pts = [apply_matrix_pt(transform, p) for p in pts]
+        for p, q in zip(pts, pts[1:]):
+            content['lines'].append((float(p[0]), float(p[1]),
+                                     float(q[0]), float(q[1]), width, color))
+        return
+    if isinstance(item, LTContainer):
+        for child in item:
+            _walk_layout(child, content, transform)
+
+
+def _empty_page_content() -> dict:
+    return {'chars': [], 'lines': [], 'rects': [], 'images': [],
+            'char_total': 0, 'skipped_cid': 0, 'skipped_rotated': 0}
+
+
+def _collect_page_content(ltpage, transform) -> dict:
+    content = _empty_page_content()
+    if ltpage is not None:
+        try:
+            _walk_layout(ltpage, content, transform)
+        except Exception:
+            pass  # 单页解析异常时按空页处理，调用方输出空白页
+    return content
+
+
+# ---------------------------------------------------------------------------
 # 字符级文本聚合（避免提取器在字距较大时插入的“推断空格”破坏单词）
 # ---------------------------------------------------------------------------
 
-def _char_is_bold(ch) -> bool:
-    """根据字符的字体粗细描述判断是否加粗"""
-    weight = str(getattr(ch, 'font_weight', '') or '').lower()
-    return ('bold' in weight) or ('heavy' in weight) or ('black' in weight)
-
-
-def _char_runs_from_page(doc: PdfDocument, page_index: int,
-                         log: Callable[[str], None]) -> Optional[List[dict]]:
+def _char_runs_from_page(content: dict, page_index: int,
+                         log: Callable[[str], None]) -> List[dict]:
     """
-    用字符级数据（extract_chars）聚合出绘制单元，替代 extract_spans 的文本。
+    用字符级数据聚合出绘制单元。
 
-    extract_spans 生成的文本会在字符间隙较大时插入“推断空格”（原文中并不
-    存在空格字符），直接重绘会把单词拆开（如 Work -> W ork）。改为从字符的
-    精确坐标出发：同风格且间隙小于阈值的字符合并为一个单元，间隙大的各自
-    按原坐标定位——既不引入多余空格，也保留原文版式（含两端对齐的拉伸）。
+    行级提取器（pdfminer 的 LTTextLine / pdf-oxide 的 extract_spans）生成的文本
+    会在字符间隙较大时插入“推断空格”（原文中并不存在空格字符），直接重绘会把
+    单词拆开（如 Work -> W ork）。改为从字符的精确坐标出发：同风格且间隙小于
+    阈值的字符合并为一个单元，间隙大的各自按原坐标定位——既不引入多余空格，
+    也保留原文版式（含两端对齐的拉伸）。
 
-    返回 None 表示字符提取失败（调用方回退到 span 模式），否则返回单元列表：
-    {text, x, y, w, font_name, size, color, bold}，坐标为 PDF 用户空间。
+    返回单元列表：{text, x, y, w, font, size, color, bold, xs}，坐标为 PDF 用户空间。
     """
-    try:
-        chars = doc.extract_chars(page_index)
-    except Exception as e:
-        log(f"  ⚠ 第{page_index + 1}页字符提取失败: {e}，改用片段模式重排")
-        return None
+    chars = content['chars']
+    if content['skipped_rotated']:
+        log(f"  ⚠ 第{page_index + 1}页有 {content['skipped_rotated']} 个旋转字符无法按水平文本重排，已跳过")
+    if content['skipped_cid']:
+        log(f"  ⚠ 第{page_index + 1}页有 {content['skipped_cid']} 个字符无法映射到 Unicode，已跳过")
     if not chars:
         return []
 
     # 自上而下、自左而右扫描
-    chars = sorted(chars, key=lambda c: (-round(c.origin_y, 1), c.origin_x))
+    chars = sorted(chars, key=lambda c: (-round(c['y'], 1), c['x']))
 
     runs: List[dict] = []
-    rotated_skipped = 0
     cur = None
     tail = None  # 当前单元的最后一个字符
 
     for ch in chars:
-        char = ch.char
-        if not char:
-            continue
-        if getattr(ch, 'rotation_degrees', 0.0):
-            rotated_skipped += 1
-            continue
-
-        size = ch.font_size if ch.font_size and ch.font_size > 0 else 10.0
-        bold = _char_is_bold(ch)
-        style = (ch.font_name, round(size, 1), tuple(ch.color or (0.0, 0.0, 0.0)), bold)
+        char = ch['text']
+        size = ch['size'] if ch['size'] and ch['size'] > 0 else 10.0
+        bold = ch['bold']
+        style = (ch['font'], round(size, 1), tuple(ch['color']), bold)
 
         merged = False
         if cur is not None:
-            same_line = abs(ch.origin_y - tail.origin_y) <= max(size * 0.35, 1.5)
-            gap = ch.origin_x - (tail.origin_x + (tail.advance_width or 0.0))
+            same_line = abs(ch['y'] - tail['y']) <= max(size * 0.35, 1.5)
+            gap = ch['x'] - (tail['x'] + (tail['adv'] or 0.0))
             # 西文相邻用较紧的阈值（真实空格约 0.25em），中西文及中文之间放宽，
             # 尽量让词语留在同一单元以保证词汇级转换的上下文
-            latin_pair = (_LATIN_RUN_RE.fullmatch(tail.char or '') is not None
+            latin_pair = (_LATIN_RUN_RE.fullmatch(tail['text'] or '') is not None
                           and _LATIN_RUN_RE.fullmatch(char) is not None)
             threshold = size * (0.20 if latin_pair else 0.30)
             if same_line and gap <= threshold and cur['style'] == style:
                 cur['text'] += char
-                cur['xs'].append(ch.origin_x)
-                cur['w'] = (ch.origin_x + (ch.advance_width or 0.0)) - cur['x']
+                cur['xs'].append(ch['x'])
+                cur['w'] = (ch['x'] + (ch['adv'] or 0.0)) - cur['x']
                 tail = ch
                 merged = True
 
         if not merged:
             cur = {
                 'text': char,
-                'x': ch.origin_x,
-                'y': ch.origin_y,
-                'w': ch.advance_width or 0.0,
-                'font_name': ch.font_name,
+                'x': ch['x'],
+                'y': ch['y'],
+                'w': ch['adv'] or 0.0,
+                'font': ch['font'],
                 'size': size,
-                'color': ch.color,
+                'color': ch['color'],
                 'bold': bold,
                 'style': style,
-                'xs': [ch.origin_x],
+                'xs': [ch['x']],
             }
             runs.append(cur)
             tail = ch
-
-    if rotated_skipped:
-        log(f"  ⚠ 第{page_index + 1}页有 {rotated_skipped} 个旋转字符无法按水平文本重排，已跳过")
 
     for r in runs:
         r.pop('style', None)
@@ -593,7 +783,7 @@ def _split_converted_by_prefix(cc, full: str, positions: List[Tuple[int, int]],
 
 
 # ---------------------------------------------------------------------------
-# 文本绘制（中英分字体 + 按脚本切分 + 宽度自适应）
+# 文本绘制（reportlab：批处理文本对象 + 中英分字体 + 宽度自适应）
 # ---------------------------------------------------------------------------
 
 # 可独立压缩推进宽度的标点（含中文语境的半角标点与全角标点、全角空格）：
@@ -609,9 +799,46 @@ _OPEN_PUNCT_RE = re.compile(r'[（（《〈“‘【〔「『]')
 _OPEN_PUNCT_INK_RIGHT = 0.9  # 开标点墨迹右缘约占字身框比例（宋体系实测 0.85~0.91）
 
 
-def _draw_text(page_builder, text: str, x: float, y: float, run_w: float,
+class _TextBatch(object):
+    """
+    把一串“单字/片段级”的绘制请求合并进一个 PDF 文本对象（BT..ET），
+    仅在字体、字号或颜色变化时发出状态指令，减少输出内容流的体积。
+    """
+    __slots__ = ('canvas', 't', 'font', 'size', 'color')
+
+    def __init__(self, canvas):
+        self.canvas = canvas
+        self.t = None
+        self.font = None
+        self.size = 0.0
+        self.color = None
+
+    def put(self, font_name: str, size: float, color, x: float, y: float, s: str) -> None:
+        if not s:
+            return
+        if self.t is None:
+            self.t = self.canvas.beginText()
+            self.font = None
+        if font_name != self.font or size != self.size:
+            self.t.setFont(font_name, size)
+            self.font = font_name
+            self.size = size
+        if color != self.color:
+            self.t.setFillColorRGB(color[0], color[1], color[2])
+            self.color = color
+        self.t.setTextOrigin(x, y)
+        self.t.textOut(s)
+
+    def flush(self) -> None:
+        if self.t is not None:
+            self.canvas.drawText(self.t)
+            self.t = None
+
+
+def _draw_text(canvas, text: str, x: float, y: float, run_w: float,
                font_name: Optional[str], size: float, color, is_bold: bool,
-               fonts: dict, char_xs: Optional[List[float]] = None) -> bool:
+               resolve_font: Callable[[str], Optional[dict]],
+               char_xs: Optional[List[float]] = None) -> bool:
     """
     按脚本分组绘制一段已转换的文本到指定位置。
 
@@ -625,13 +852,14 @@ def _draw_text(page_builder, text: str, x: float, y: float, run_w: float,
       左漂，在段尾与后一单元之间留下空隙。char_xs 对应原文文本，长度与
       转换后文本一致时可用；OpenCC 短语转换可能改变字符数（如 s2twp 的
       “内存”→“記憶體”），此时回退到整段重排
-    - 整段重排路径（span 回退、转换改变字符数）中，中文标点独立成段：
+    - 整段重排路径（转换改变字符数）中，中文标点独立成段：
       输出中文字体的标点字身框是全宽的，而源文档标点推进宽度常只有一半，
       按自然宽度推进会触发缩字号、把标点明显变小。标点单独定位后只压缩
       其推进宽度（字形保持原字号），开标点再左移使墨迹贴住后字；标点压
       到半宽仍放不下时才回退为按比例缩小字号
 
-    fonts 为 逻辑字体键 -> {'name': 注册名, 'path': 字体文件路径}。
+    resolve_font 负责把逻辑字体键（sans/serif/kai/fangsong/latin_*）解析为
+    惰性注册后的 {'name': 注册名, 'path': 字体文件路径}（失败时回退黑体）。
     返回是否实际绘制了内容。
     """
     if not text:
@@ -647,18 +875,21 @@ def _draw_text(page_builder, text: str, x: float, y: float, run_w: float,
         key = category + '_bold'
     else:
         key = category
-    cjk_entry = fonts.get(key) or fonts['sans']
+    cjk_entry = resolve_font(key) or resolve_font('sans')
     # 楷体/仿宋的西文部分按衬线处理（与宋体一致）
     if category in ('serif', 'kai', 'fangsong'):
         lkey = 'latin_serif_bold' if is_bold else 'latin_serif'
     else:
         lkey = 'latin_sans_bold' if is_bold else 'latin_sans'
-    latin_entry = fonts.get(lkey) or fonts['sans']
+    latin_entry = resolve_font(lkey) or resolve_font('sans')
+    if cjk_entry is None or latin_entry is None:
+        return False  # 连回退字体都无法注册，放弃该单元
 
     # --- 逐字定位路径：每个字落在原文坐标上 ---
     # char_xs 与原文等长；转换后长度一致（OpenCC 多数映射为 1:1）时可用
     if char_xs and len(char_xs) == len(text):
         n = len(char_xs)
+        batch = _TextBatch(canvas)
         for i, (ch, cx) in enumerate(zip(text, char_xs)):
             draw_x = cx
             if _OPEN_PUNCT_RE.fullmatch(ch):
@@ -673,13 +904,13 @@ def _draw_text(page_builder, text: str, x: float, y: float, run_w: float,
                 entry = latin_entry
             else:
                 entry = cjk_entry
-            page_builder.font(entry['name'], size).at(draw_x, y).inline_color(
-                color[0], color[1], color[2], ch)
+            batch.put(entry['name'], size, color, draw_x, y, ch)
+        batch.flush()
         return True
 
     # --- 整段重排路径 ---
     segments = []  # [text, 注册名, 字体路径, 是否可压缩标点]
-    for part, is_latin in _split_by_script(converted):
+    for part, is_latin in _split_by_script(text):
         entry = latin_entry if is_latin else cjk_entry
         if is_latin:
             segments.append([part, entry['name'], entry['path'], False])
@@ -713,111 +944,145 @@ def _draw_text(page_builder, text: str, x: float, y: float, run_w: float,
                 widths = [w * 0.5 if seg[3] else w
                           for w, seg in zip(widths, segments)]
 
+    batch = _TextBatch(canvas)
     for seg, width, natural in zip(segments, widths, naturals):
         draw_x = x
         if (seg[3] and width and natural and width < natural
                 and _OPEN_PUNCT_RE.fullmatch(seg[0])):
             # 开标点：墨迹右缘对齐压缩后单元的右界（贴住后面的字）
             draw_x = x + width - _OPEN_PUNCT_INK_RIGHT * size
-        page_builder.font(seg[1], size).at(draw_x, y).inline_color(
-            color[0], color[1], color[2], seg[0])
+        batch.put(seg[1], size, color, draw_x, y, seg[0])
         if width:
             x += width
+    batch.flush()
     return True
 
 
-def _draw_span_text(page_builder, text: str, span, fonts: dict,
-                    ox: float, oy: float) -> bool:
-    """按 span 绘制已转换的文本（字符级聚合失败时的回退路径）"""
-    if not text or not text.strip():
-        return False
-    size = span.font_size if span.font_size and span.font_size > 0 else 10.0
-    return _draw_text(page_builder, text,
-                      span.bbox[0] - ox, span.bbox[1] - oy, span.bbox[2],
-                      span.font_name, size, span.color, span.is_bold, fonts)
-
-
 # ---------------------------------------------------------------------------
-# 页面元素重建辅助
+# 页面元素重建辅助（图片 / 矢量线条与矩形）
 # ---------------------------------------------------------------------------
 
-def _offset_point(x: float, y: float, ox: float, oy: float) -> Tuple[float, float]:
-    """将用户空间坐标平移到以裁剪框左下角为原点的页面坐标系"""
-    return x - ox, y - oy
+def _draw_lines(canvas, lines: list, ox: float, oy: float) -> None:
+    """按矢量线条记录重画线段（表格边框、下划线等）"""
+    for x1, y1, x2, y2, width, color in lines:
+        canvas.setStrokeColorRGB(color[0], color[1], color[2])
+        canvas.setLineWidth(width or 1.0)
+        canvas.line(x1 - ox, y1 - oy, x2 - ox, y2 - oy)
 
 
-def _draw_lines(page_builder, lines: list, ox: float, oy: float) -> None:
-    """按矢量线条的操作序列重画线段（表格边框、下划线等）"""
-    for line in lines:
-        color = line.get('stroke_color') or (0.0, 0.0, 0.0)
-        width = line.get('stroke_width') or 1.0
-        cur = None
-        for op in line.get('operations', []):
-            name = op.get('op')
-            if name == 'move_to':
-                cur = (op.get('x', 0.0), op.get('y', 0.0))
-            elif name == 'line_to' and cur is not None:
-                end = (op.get('x', 0.0), op.get('y', 0.0))
-                x1, y1 = _offset_point(cur[0], cur[1], ox, oy)
-                x2, y2 = _offset_point(end[0], end[1], ox, oy)
-                page_builder.stroke_line(x1, y1, x2, y2, width, color)
-                cur = end
-
-
-def _draw_rects(page_builder, rects: list, ox: float, oy: float) -> None:
-    """重画矩形（底色块、边框等）；有填充色优先按填充绘制"""
+def _draw_rects(canvas, rects: list, ox: float, oy: float) -> None:
+    """重画矩形（底色块、边框等）；填充与描边分别按原状态绘制"""
     for rect in rects:
-        x, y, w, h = rect.get('bbox', (0.0, 0.0, 0.0, 0.0))
-        x, y = _offset_point(x, y, ox, oy)
-        fill = rect.get('fill_color')
-        if fill is not None:
-            page_builder.filled_rect(x, y, w, h, fill[0], fill[1], fill[2])
-        else:
-            stroke = rect.get('stroke_color') or (0.0, 0.0, 0.0)
-            width = rect.get('stroke_width') or 1.0
-            page_builder.stroke_rect(x, y, w, h, width, stroke)
+        x0, y0, x1, y1 = rect['bbox']
+        x, y = x0 - ox, y0 - oy
+        w, h = x1 - x0, y1 - y0
+        if rect['fill']:
+            fill = rect['ncolor']
+            canvas.setFillColorRGB(fill[0], fill[1], fill[2])
+            canvas.rect(x, y, w, h, stroke=0, fill=1)
+        if rect['stroke']:
+            stroke = rect['scolor']
+            canvas.setStrokeColorRGB(stroke[0], stroke[1], stroke[2])
+            canvas.setLineWidth(rect['width'] or 1.0)
+            canvas.rect(x, y, w, h, stroke=1, fill=0)
 
 
-def _draw_images(page_builder, doc: PdfDocument, page_index: int,
-                 ox: float, oy: float, log: Callable[[str], None]) -> int:
+# pypdf 的图片名带扩展名（如 Im0.png），pdfminer 的资源名不带（Im0）；
+# 但 reportlab 生成的资源名本身含点（FormXob.<hash>），只能按已知图片
+# 扩展名剥离，避免把名称里的哈希段误当作扩展名
+_IMAGE_NAME_EXTS = ('.png', '.jpg', '.jpeg', '.jp2', '.jpx', '.j2k', '.jb2',
+                    '.jbig2', '.bmp', '.gif', '.tif', '.tiff')
+
+
+def _pypdf_images_for_page(reader, page_index: int) -> dict:
     """
-    将页面上的图片按原位置嵌入新文档。
-    extract_images 提供位置（bbox），extract_image_bytes 提供图像字节，
-    两者按内容流顺序一一对应。
+    用 pypdf 取出该页全部图片 {资源名: PIL.Image}。
+    失败（加密页、非常规编码）时返回空表，调用方走自行解码路径。
     """
-    metas = doc.extract_images(page_index) or []
-    blobs = doc.extract_image_bytes(page_index) or []
-    if len(metas) != len(blobs):
-        log(f"  ⚠ 第{page_index + 1}页图片位置与图像数据数量不一致"
-            f"（{len(metas)}/{len(blobs)}），仅按序号对齐绘制")
-
-    drawn = 0
-    for meta, blob in zip(metas, blobs):
-        bbox = meta.get('bbox')
-        data = blob.get('data') if isinstance(blob, dict) else blob
-        if not bbox or not data:
-            continue
-        x, y = _offset_point(bbox[0], bbox[1], ox, oy)
-        page_builder.image_with_alt(data, x, y, bbox[2], bbox[3], "")
-        drawn += 1
-    return drawn
-
-
-def _rasterize_page_png(doc: PdfDocument, page_index: int, dpi: int = 150) -> Optional[bytes]:
-    """
-    将整页栅格化为 PNG 字节（用于没有文本层的扫描页，保留原页面外观）。
-    栅格化失败返回 None，调用方按空白页处理。
-    """
+    if reader is None:
+        return {}
     try:
-        pm = doc.render_pixmap(page_index, dpi=dpi)
-        im = Image.frombytes("RGBA", (pm.width, pm.height), pm.data)
-        bg = Image.new("RGBA", im.size, (255, 255, 255, 255))
-        bg.alpha_composite(im)
-        buf = io.BytesIO()
-        bg.convert("RGB").save(buf, format="PNG")
-        return buf.getvalue()
+        page = reader.pages[page_index]
+        result = {}
+        for img in page.images:
+            name = img.name or ''
+            lower = name.lower()
+            for ext in _IMAGE_NAME_EXTS:
+                if lower.endswith(ext):
+                    name = name[:-len(ext)]
+                    break
+            try:
+                result[name] = img.image
+            except Exception:
+                continue
+        return result
+    except Exception:
+        return {}
+
+
+def _decode_image(rec: dict, pypdf_images_getter: Callable[[], dict]) -> Optional[object]:
+    """
+    把一条图片记录解码为 reportlab 的 ImageReader：
+    1) JPEG（DCT）直通：原压缩字节原样内嵌，避免有损转码与体积膨胀；
+    2) pypdf 按资源名匹配（覆盖 CCITT 传真、LZW、Indexed 调色板等复杂编码）；
+    3) 自行解码 JPEG2000 与未压缩位图（经 PIL）。
+    解码失败返回 None（调用方记日志跳过该图）。
+    """
+    item = rec['item']
+    try:
+        filters = [f[0] for f in item.stream.get_filters()]
+        data = item.stream.get_data()
+        src_w, src_h = int(item.srcsize[0]), int(item.srcsize[1])
     except Exception:
         return None
+    if src_w <= 0 or src_h <= 0 or not data:
+        return None
+    try:
+        if any(f in LITERALS_DCT_DECODE for f in filters):
+            return ImageReader(io.BytesIO(data))
+        pypdf_images = pypdf_images_getter()
+        if pypdf_images:
+            pil = pypdf_images.get(rec['name'])
+            if pil is not None:
+                return ImageReader(pil)
+        if filters and filters[-1] in LITERALS_JPX_DECODE:
+            im = Image.open(io.BytesIO(data))
+            if im.mode not in ('RGB', 'RGBA'):
+                im = im.convert('RGB')
+            return ImageReader(im)
+        cs = item.colorspace or []
+        bpc = int(item.bits or 8)
+        if bpc == 8 and (LITERAL_DEVICE_RGB in cs or LITERAL_INLINE_DEVICE_RGB in cs):
+            im = Image.frombytes('RGB', (src_w, src_h), data)
+        elif bpc == 8 and (LITERAL_DEVICE_GRAY in cs or LITERAL_INLINE_DEVICE_GRAY in cs):
+            im = Image.frombytes('L', (src_w, src_h), data)
+        elif bpc == 1:
+            im = Image.frombytes('1', (src_w, src_h), data)
+        else:
+            return None
+        return ImageReader(im)
+    except Exception:
+        return None
+
+
+def _draw_images(canvas, content: dict, pypdf_images_getter: Callable[[], dict],
+                 ox: float, oy: float, page_no: int,
+                 log: Callable[[str], None]) -> int:
+    """将页面上的图片按原位置嵌入新文档，返回成功绘制的数量"""
+    drawn = 0
+    for rec in content['images']:
+        reader = _decode_image(rec, pypdf_images_getter)
+        if reader is None:
+            log(f"  ⚠ 第{page_no}页图片 {rec['name']} 解码失败，未保留")
+            continue
+        x0, y0, x1, y1 = rec['bbox']
+        try:
+            canvas.drawImage(reader, x0 - ox, y0 - oy, x1 - x0, y1 - y0,
+                             mask='auto')
+            drawn += 1
+        except Exception as e:
+            log(f"  ⚠ 第{page_no}页图片 {rec['name']} 绘制失败: {e}")
+    return drawn
 
 
 # ---------------------------------------------------------------------------
@@ -838,7 +1103,8 @@ def convert_pdf_file(
     本模块采用“提取 + 按原版式重建”策略：
     - 按原文位置、字号、颜色重排转换后的文字
     - 保留页面尺寸、图片、矢量线条与矩形
-    - 无文本层的扫描页按原图栅格化保留
+    - 无文本层的扫描页按原页面图片保留（纯 Python 引擎无法整页栅格化，
+      改为把页面上的原图重新嵌入，扫描页通常就是整页一张图）
 
     参数
     ----------
@@ -861,6 +1127,16 @@ def convert_pdf_file(
     def log(msg: str) -> None:
         if log_callback:
             log_callback(msg)
+
+    # --- 引擎依赖检查 ---
+    if _PDFMINER_IMPORT_ERROR or _REPORTLAB_IMPORT_ERROR:
+        missing = []
+        if _PDFMINER_IMPORT_ERROR:
+            missing.append(f"pdfminer.six ({_PDFMINER_IMPORT_ERROR})")
+        if _REPORTLAB_IMPORT_ERROR:
+            missing.append(f"reportlab ({_REPORTLAB_IMPORT_ERROR})")
+        log("错误：缺少 PDF 转换依赖 - " + "；".join(missing))
+        return False
 
     # --- 参数校验 ---
     if not os.path.isfile(input_path):
@@ -932,55 +1208,102 @@ def convert_pdf_file(
     else:
         log("警告：系统中未找到拉丁字体（Arial/Times 等），西文将使用中文字体渲染，可能与原文观感有差异")
 
-    # --- 打开 PDF ---
+    # --- 打开 PDF（pdfminer 为主，pypdf 仅作图片解码兜底） ---
+    fp = None
     try:
-        doc = PdfDocument(input_path)
+        fp = open(input_path, 'rb')
+        parser = PDFParser(fp)
+        miner_doc = _MinerDocument(parser)
+        pages = list(PDFPage.create_pages(miner_doc))
+    except PDFPasswordIncorrect:
+        log("错误：无法读取 PDF 文件 - 该文件已加密，本工具暂不支持带密码的 PDF")
+        if fp is not None:
+            fp.close()
+        return False
     except Exception as e:
         msg = str(e)
         log(f"错误：无法读取 PDF 文件 - {msg}")
         if 'password' in msg.lower() or 'encrypt' in msg.lower():
             log("提示：该文件已加密，本工具暂不支持带密码的 PDF")
-        elif 'head' in msg.lower() or 'EOF' in msg or 'format' in msg.lower():
+        elif 'head' in msg.lower() or 'EOF' in msg or 'format' in msg.lower() \
+                or 'syntax' in msg.lower() or 'xref' in msg.lower():
             log("提示：该文件可能不是有效的 PDF 文件")
+        if fp is not None:
+            fp.close()
         return False
 
+    pypdf_reader = None
+    if PdfReader is not None:
+        try:
+            pypdf_reader = PdfReader(input_path)
+        except Exception:
+            pypdf_reader = None
+
     try:
-        total_pages = int(doc.page_count)
+        total_pages = len(pages)
         if total_pages <= 0:
             log("错误：PDF 中没有任何页面")
             return False
 
-        # --- 预检文本层：全部为扫描页时无法转换 ---
-        text_pages = sum(1 for i in range(total_pages) if doc.has_text_layer(i))
-        if text_pages == 0:
-            log("错误：该 PDF 没有可提取的文本层（可能是扫描或纯图片 PDF），无法进行文字转换")
-            log("提示：如需转换扫描件，请先使用 OCR 工具识别文字后再尝试")
-            return False
-        if text_pages < total_pages:
-            log(f"警告：{total_pages - text_pages}/{total_pages} 页没有文本层（扫描页），这些页面将按原样栅格化保留")
-
         # --- 初始化输出文档 ---
-        builder = DocumentBuilder().title(f"convert_{os.path.splitext(os.path.basename(input_path))[0]}")
-
-        # 实例化逻辑字体表；同一字体文件只注册一次，多个逻辑名共享注册名
-        fonts = {}
+        # 同一字体文件只注册一次（惰性，首次绘制时触发），多个逻辑名共享注册名
         registered_by_path = {}
-        for key, default_name in _DEFAULT_FONT_NAMES.items():
-            path = font_paths[key]
-            if path not in registered_by_path:
-                try:
-                    builder = builder.register_embedded_font(default_name, EmbeddedFont.from_file(path))
-                    registered_by_path[path] = default_name
-                except Exception as e:
-                    log(f"警告：字体 {os.path.basename(path)} 注册失败（{e}），相关文字将使用黑体渲染")
-                    fonts[key] = {'name': _DEFAULT_FONT_NAMES['sans'], 'path': font_paths['sans']}
-                    continue
-            fonts[key] = {'name': registered_by_path[path], 'path': path}
+        failed_paths = set()
+
+        def _load_font(path: str) -> Optional[str]:
+            if path in registered_by_path:
+                return registered_by_path[path]
+            if path in failed_paths:
+                return None
+            name = 'Ft%d' % len(registered_by_path)
+            try:
+                pdfmetrics.registerFont(TTFont(name, path, subfontIndex=0))
+            except Exception as e:
+                log(f"警告：字体 {os.path.basename(path)} 注册失败（{e}），相关文字将使用黑体渲染")
+                failed_paths.add(path)
+                return None
+            registered_by_path[path] = name
+            return name
+
+        # sans 必须可用（它是所有类别的最终回退）
+        if _load_font(font_paths['sans']) is None:
+            log("错误：中文字体注册失败，无法生成中文 PDF")
+            return False
+
+        fonts = {key: {'name': None, 'path': path}
+                 for key, path in font_paths.items()}
+        fonts['sans']['name'] = registered_by_path[font_paths['sans']]
+
+        def resolve_font(key: str) -> Optional[dict]:
+            entry = fonts.get(key) or fonts['sans']
+            if entry['name'] is None:
+                name = _load_font(entry['path'])
+                if name is None and entry is not fonts['sans']:
+                    entry = fonts['sans']
+                    name = entry['name']
+                if name is None:
+                    return None
+                entry['name'] = name
+            return entry
+
+        output_filename = f"convert_{os.path.basename(input_path)}"
+        output_path = os.path.join(output_folder, output_filename)
+        if not output_path.lower().endswith('.pdf'):
+            output_path += '.pdf'
+
+        canvas = Canvas(output_path, pageCompression=1)
+        canvas.setTitle(f"convert_{os.path.splitext(os.path.basename(input_path))[0]}")
+
+        rsrcmgr = PDFResourceManager()
+        device = PDFPageAggregator(rsrcmgr, laparams=None)
+        interpreter = PDFPageInterpreter(rsrcmgr, device)
 
         converted_spans = 0
+        text_pages = 0
         warned_rotation = False
+        pypdf_images_cache = {}
 
-        for page_index in range(total_pages):
+        for page_index, page in enumerate(pages):
             if is_cancelled_callback and is_cancelled_callback():
                 log("转换已被取消")
                 return False
@@ -989,95 +1312,140 @@ def convert_pdf_file(
 
             # 裁剪框决定可见区域，输出页面以它为基准
             try:
-                cx0, cy0, cx1, cy1 = doc.page_crop_box(page_index)
+                cx0, cy0, cx1, cy1 = [float(v) for v in page.cropbox]
             except Exception:
-                cx0, cy0, cx1, cy1 = doc.page_media_box(page_index)
+                cx0 = cy0 = cx1 = cy1 = 0.0
             page_w, page_h = cx1 - cx0, cy1 - cy0
             if page_w <= 0 or page_h <= 0:
-                mb = doc.page_media_box(page_index)
+                try:
+                    mb = [float(v) for v in page.mediabox]
+                except Exception:
+                    mb = [0.0, 0.0, 612.0, 792.0]
                 cx0, cy0 = mb[0], mb[1]
                 page_w, page_h = mb[2] - mb[0], mb[3] - mb[1]
 
-            rotation = doc.page_rotation(page_index)
+            rotation = int(page.rotate or 0) % 360
             if rotation and not warned_rotation:
                 log(f"  ⚠ 第{page_index + 1}页设置了页面旋转（{rotation}°），该页输出方向可能与原文不同")
                 warned_rotation = True
 
-            page_builder = builder.page(page_w, page_h)
-
-            # --- 无文本层的扫描页：整页栅格化保留 ---
-            if not doc.has_text_layer(page_index):
-                png = _rasterize_page_png(doc, page_index)
-                if png:
-                    page_builder.image_with_alt(png, 0.0, 0.0, page_w, page_h, "")
-                else:
-                    log(f"  ⚠ 第{page_index + 1}页栅格化失败，输出为空白页")
-                builder = page_builder.done()
-                continue
-
-            # --- 图片（先画，位于文字下层） ---
+            # pdfminer 的布局坐标在“设备空间”（旋转与媒体框平移已应用）。
+            # 旋转页用 ctm 的逆矩阵把坐标还原到用户空间，让水平文字得以保留；
+            # 非旋转页 pdfminer 仅做了媒体框平移，记录设备坐标即可，但绘制
+            # 基准需相应改为“设备空间中的裁剪框原点”，避免平移量被重复扣除。
             try:
-                _draw_images(page_builder, doc, page_index, cx0, cy0, log)
+                mx0, my0, mx1, my1 = [float(v) for v in page.mediabox]
+            except Exception:
+                mx0, my0, mx1, my1 = 0.0, 0.0, 0.0, 0.0
+            if rotation == 90:
+                ctm = (0.0, -1.0, 1.0, 0.0, -my0, mx1)
+            elif rotation == 180:
+                ctm = (-1.0, 0.0, 0.0, -1.0, mx1, my1)
+            elif rotation == 270:
+                ctm = (0.0, 1.0, -1.0, 0.0, my1, -mx0)
+            else:
+                ctm = None
+            if ctm is None:
+                transform = None
+                ox, oy = cx0 - mx0, cy0 - my0
+            else:
+                transform = _inverse_matrix(ctm)
+                if transform is None:
+                    transform = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+                ox, oy = cx0, cy0
+
+            canvas.setPageSize((page_w, page_h))
+
+            # --- 解析页面内容 ---
+            ltpage = None
+            try:
+                interpreter.process_page(page)
+                ltpage = device.get_result()
+            except Exception as e:
+                log(f"  ⚠ 第{page_index + 1}页内容解析失败: {e}")
+            content = _collect_page_content(ltpage, transform)
+            has_text = content['char_total'] > 0
+
+            # --- 图片（先画，位于文字下层）；扫描页以此保留原貌 ---
+            def _pypdf_images_lazy() -> dict:
+                cached = pypdf_images_cache.get(page_index)
+                if cached is None:
+                    cached = _pypdf_images_for_page(pypdf_reader, page_index)
+                    pypdf_images_cache[page_index] = cached
+                return cached
+
+            drawn_images = 0
+            try:
+                drawn_images = _draw_images(canvas, content, _pypdf_images_lazy,
+                                            ox, oy, page_index + 1, log)
             except Exception as e:
                 log(f"  ⚠ 第{page_index + 1}页图片保留失败: {e}")
 
+            if not has_text:
+                # 无文本层的扫描页：图片即整页原貌；图片都解码失败时只能留白
+                if drawn_images == 0 and content['images']:
+                    log(f"  ⚠ 第{page_index + 1}页扫描图片解码失败，输出为空白页")
+                elif not content['images']:
+                    log(f"  ⚠ 第{page_index + 1}页没有文本层也没有图片，输出为空白页")
+                canvas.showPage()
+                continue
+
+            text_pages += 1
+
             # --- 矢量线条与矩形 ---
             try:
-                _draw_lines(page_builder, doc.extract_lines(page_index) or [], cx0, cy0)
-                _draw_rects(page_builder, doc.extract_rects(page_index) or [], cx0, cy0)
+                _draw_lines(canvas, content['lines'], ox, oy)
+                _draw_rects(canvas, content['rects'], ox, oy)
             except Exception as e:
                 log(f"  ⚠ 第{page_index + 1}页矢量图形保留失败: {e}")
 
             # --- 文本：字符级聚合成绘制单元，按页直拼转换后按位置切回重排
             #     （直拼转换保留跨单元的词上下文；字符聚合避免推断空格拆开单词） ---
-            char_runs = _char_runs_from_page(doc, page_index, log)
-            if char_runs is not None:
-                converted_texts = _convert_page_texts(
-                    cc, [run['text'] for run in char_runs], page_index + 1, log)
-                for run, converted in zip(char_runs, converted_texts):
-                    if _draw_text(page_builder, converted,
-                                  run['x'] - cx0, run['y'] - cy0, run['w'],
-                                  run['font_name'], run['size'], run['color'],
-                                  run['bold'], fonts,
-                                  char_xs=[v - cx0 for v in run.get('xs', ())] or None):
-                        converted_spans += 1
-            else:
-                # 回退：按 span 重排
-                try:
-                    spans = doc.extract_spans(page_index)
-                except Exception as e:
-                    log(f"  ⚠ 第{page_index + 1}页文本提取失败: {e}")
-                    spans = []
+            char_runs = _char_runs_from_page(content, page_index, log)
+            converted_texts = _convert_page_texts(
+                cc, [run['text'] for run in char_runs], page_index + 1, log)
+            for run, converted in zip(char_runs, converted_texts):
+                if _draw_text(canvas, converted,
+                              run['x'] - ox, run['y'] - oy, run['w'],
+                              run['font'], run['size'], run['color'],
+                              run['bold'], resolve_font,
+                              char_xs=[v - ox for v in run.get('xs', ())] or None):
+                    converted_spans += 1
 
-                converted_texts = _convert_page_texts(
-                    cc, [span.text or '' for span in spans], page_index + 1, log)
-                for span, converted in zip(spans, converted_texts):
-                    if _draw_span_text(page_builder, converted, span, fonts, cx0, cy0):
-                        converted_spans += 1
-
-            builder = page_builder.done()
+            canvas.showPage()
 
         # --- 取消检查 ---
         if is_cancelled_callback and is_cancelled_callback():
             return False
 
-        # --- 写出文件 ---
-        output_filename = f"convert_{os.path.basename(input_path)}"
-        output_path = os.path.join(output_folder, output_filename)
-        if not output_path.lower().endswith('.pdf'):
-            output_path += '.pdf'
+        # --- 全部为扫描页：无法转换 ---
+        if text_pages == 0:
+            log("错误：该 PDF 没有可提取的文本层（可能是扫描或纯图片 PDF），无法进行文字转换")
+            log("提示：如需转换扫描件，请先使用 OCR 工具识别文字后再尝试")
+            return False
+        if text_pages < total_pages:
+            log(f"警告：{total_pages - text_pages}/{total_pages} 页没有文本层（扫描页），这些页面已按原图保留")
 
+        # --- 写出文件 ---
         try:
-            builder.save(output_path)
+            canvas.save()
         except Exception as e:
             log(f"错误：写出 PDF 文件失败 - {e}")
+            try:
+                if os.path.exists(output_path):
+                    os.remove(output_path)
+            except OSError:
+                pass
             return False
 
         log(f"已保存: {output_path}")
         log(f"PDF 转换完成：共 {total_pages} 页，转换 {converted_spans} 个文本片段")
         return output_path
+    except Exception as e:
+        log(f"错误：转换过程出现异常 - {e}")
+        return False
     finally:
         try:
-            doc.close() if hasattr(doc, 'close') else None
+            fp.close()
         except Exception:
             pass

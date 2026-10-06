@@ -1,0 +1,13 @@
+PySide2>=5.15.2
+opencc-py>=1.4.2
+jieba>=0.42.1
+python-docx>=1.1.0
+chardet>=5.0
+beautifulsoup4>=4.12
+lxml>=4.9
+certifi>=2026.07.22
+pywin32>=306
+Pillow>=9.0
+pdfminer.six>=20231228
+reportlab>=4.2
+pypdf>=3.9
