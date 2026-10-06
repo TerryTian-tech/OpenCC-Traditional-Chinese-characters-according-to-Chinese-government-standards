@@ -536,6 +536,63 @@ def _char_runs_from_page(doc: PdfDocument, page_index: int,
 
 
 # ---------------------------------------------------------------------------
+# OpenCC 批量转换（按页直拼整体转换，按位置索引切回）
+# ---------------------------------------------------------------------------
+
+
+def _convert_page_texts(cc, texts: List[str],
+                        page_no: int, log: Callable[[str], None]) -> List[str]:
+    """
+    将一页的所有绘制单元文本直接拼成一段整体转换，再按位置索引切回各单元
+    （移植自 doc_converter 的段落级上下文方案）。
+
+    PDF 字符级聚合出的单元常在词中间被切断（字体切换、换行、大间距，如
+    分属行尾行首的“重复”、分属宋体与 Times 的“电复”），逐单元转换会让
+    歧义字失去词上下文（“复”→“復”而非“複”）。单元直拼后整页一次转换，
+    跨单元的词也能正确消歧；拆回不依赖分隔符——单元边界就是拼接时的字符
+    偏移，与转换内容无关：
+
+    - 转换前后长度一致（繁简映射绝大多数 1:1）：按偏移切割，各单元原文
+      与译文等长，可走逐字定位绘制路径，版式与原文一致；
+    - 长度不一致（罕见，如 s2twp 的“内存”→“記憶體”）：用前缀转换定位
+      各单元边界在译文中的落点后切割，长度变化的单元自动落入整段重排
+      路径，其余单元仍走逐字定位。
+    """
+    if not texts:
+        return []
+    positions = []
+    offset = 0
+    for t in texts:
+        positions.append((offset, offset + len(t)))
+        offset += len(t)
+    full = ''.join(texts)
+    converted = cc.convert(full)
+    if len(converted) == len(full):
+        return [converted[s:e] for (s, e) in positions]
+    log(f"  ⚠ 第{page_no}页转换后字符数变化（{len(full)}→{len(converted)}），按前缀转换定位单元边界")
+    return _split_converted_by_prefix(cc, full, positions, converted)
+
+
+def _split_converted_by_prefix(cc, full: str, positions: List[Tuple[int, int]],
+                               converted: str) -> List[str]:
+    """
+    转换改变字符数时，用“前缀转换”确定各单元边界在译文中的落点：
+    对每个单元结束位置 p，len(convert(full[:p])) 即该边界的译文位置——
+    由 OpenCC 自身的分词决定，词内的字不会被错配到相邻单元（draw 时
+    错配意味着字符画到别的单元位置上）。
+
+    前缀长度理论上可能非单调（边界切在词中间、词典长短映射），用钳制
+    保证边界单调递增，最坏退化为按邻近边界对齐——不丢字、不重复。
+    （与 doc_converter._convert_paragraph_fallback 同一方案。）
+    """
+    bounds = [0]
+    for _s, e in positions:
+        q = len(cc.convert(full[:e]))
+        bounds.append(min(max(q, bounds[-1]), len(converted)))
+    return [converted[bounds[i]:bounds[i + 1]] for i in range(len(positions))]
+
+
+# ---------------------------------------------------------------------------
 # 文本绘制（中英分字体 + 按脚本切分 + 宽度自适应）
 # ---------------------------------------------------------------------------
 
@@ -552,19 +609,22 @@ _OPEN_PUNCT_RE = re.compile(r'[（（《〈“‘【〔「『]')
 _OPEN_PUNCT_INK_RIGHT = 0.9  # 开标点墨迹右缘约占字身框比例（宋体系实测 0.85~0.91）
 
 
-def _draw_text(page_builder, cc, text: str, x: float, y: float, run_w: float,
+def _draw_text(page_builder, text: str, x: float, y: float, run_w: float,
                font_name: Optional[str], size: float, color, is_bold: bool,
                fonts: dict, char_xs: Optional[List[float]] = None) -> bool:
     """
-    转换一段文本并按脚本分组绘制到指定位置。
+    按脚本分组绘制一段已转换的文本到指定位置。
+
+    文本由 _convert_page_texts 按页批量转换后传入，本函数只负责排版绘制：
 
     - 按原文风格类别（黑体/宋体/楷体/仿宋）匹配输出字体，保留字体区分度
     - 西文/数字按原文风格选择衬线/非衬线拉丁字体；中文语境下的半角标点
       跟随中文字体（源文档里它们由中文字库渲染，落到西文字体会明显变小）
     - 优先逐字按原始坐标绘制（char_xs）：完整保留两端对齐的字距拉伸与
       方正书版“标点半角”版式——整段按字体自然宽度推进会让段内文字逐渐
-      左漂，在段尾与后一单元之间留下空隙。仅当转换后字符数与原文一致时
-      可用，否则回退到整段重排
+      左漂，在段尾与后一单元之间留下空隙。char_xs 对应原文文本，长度与
+      转换后文本一致时可用；OpenCC 短语转换可能改变字符数（如 s2twp 的
+      “内存”→“記憶體”），此时回退到整段重排
     - 整段重排路径（span 回退、转换改变字符数）中，中文标点独立成段：
       输出中文字体的标点字身框是全宽的，而源文档标点推进宽度常只有一半，
       按自然宽度推进会触发缩字号、把标点明显变小。标点单独定位后只压缩
@@ -574,8 +634,7 @@ def _draw_text(page_builder, cc, text: str, x: float, y: float, run_w: float,
     fonts 为 逻辑字体键 -> {'name': 注册名, 'path': 字体文件路径}。
     返回是否实际绘制了内容。
     """
-    converted = cc.convert(text)
-    if not converted:
+    if not text:
         return False
 
     span_w = run_w
@@ -597,10 +656,10 @@ def _draw_text(page_builder, cc, text: str, x: float, y: float, run_w: float,
     latin_entry = fonts.get(lkey) or fonts['sans']
 
     # --- 逐字定位路径：每个字落在原文坐标上 ---
-    if (char_xs and len(char_xs) == len(converted)
-            and len(char_xs) == len(text)):
+    # char_xs 与原文等长；转换后长度一致（OpenCC 多数映射为 1:1）时可用
+    if char_xs and len(char_xs) == len(text):
         n = len(char_xs)
-        for i, (ch, cx) in enumerate(zip(converted, char_xs)):
+        for i, (ch, cx) in enumerate(zip(text, char_xs)):
             draw_x = cx
             if _OPEN_PUNCT_RE.fullmatch(ch):
                 # 开标点墨迹靠字身框右侧：源单元（到下一字的距离）比全宽
@@ -667,14 +726,13 @@ def _draw_text(page_builder, cc, text: str, x: float, y: float, run_w: float,
     return True
 
 
-def _draw_span_text(page_builder, cc, span, fonts: dict,
+def _draw_span_text(page_builder, text: str, span, fonts: dict,
                     ox: float, oy: float) -> bool:
-    """按 span 绘制（字符级聚合失败时的回退路径）"""
-    text = span.text
+    """按 span 绘制已转换的文本（字符级聚合失败时的回退路径）"""
     if not text or not text.strip():
         return False
     size = span.font_size if span.font_size and span.font_size > 0 else 10.0
-    return _draw_text(page_builder, cc, text,
+    return _draw_text(page_builder, text,
                       span.bbox[0] - ox, span.bbox[1] - oy, span.bbox[2],
                       span.font_name, size, span.color, span.is_bold, fonts)
 
@@ -970,11 +1028,14 @@ def convert_pdf_file(
             except Exception as e:
                 log(f"  ⚠ 第{page_index + 1}页矢量图形保留失败: {e}")
 
-            # --- 文本：字符级聚合成绘制单元后转换重排（避免推断空格拆开单词） ---
+            # --- 文本：字符级聚合成绘制单元，按页直拼转换后按位置切回重排
+            #     （直拼转换保留跨单元的词上下文；字符聚合避免推断空格拆开单词） ---
             char_runs = _char_runs_from_page(doc, page_index, log)
             if char_runs is not None:
-                for run in char_runs:
-                    if _draw_text(page_builder, cc, run['text'],
+                converted_texts = _convert_page_texts(
+                    cc, [run['text'] for run in char_runs], page_index + 1, log)
+                for run, converted in zip(char_runs, converted_texts):
+                    if _draw_text(page_builder, converted,
                                   run['x'] - cx0, run['y'] - cy0, run['w'],
                                   run['font_name'], run['size'], run['color'],
                                   run['bold'], fonts,
@@ -988,8 +1049,10 @@ def convert_pdf_file(
                     log(f"  ⚠ 第{page_index + 1}页文本提取失败: {e}")
                     spans = []
 
-                for span in spans:
-                    if _draw_span_text(page_builder, cc, span, fonts, cx0, cy0):
+                converted_texts = _convert_page_texts(
+                    cc, [span.text or '' for span in spans], page_index + 1, log)
+                for span, converted in zip(spans, converted_texts):
+                    if _draw_span_text(page_builder, converted, span, fonts, cx0, cy0):
                         converted_spans += 1
 
             builder = page_builder.done()
