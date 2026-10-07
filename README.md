@@ -43,6 +43,8 @@ OpenCC转换的配置文件存于本仓库的“t2gov”文件夹下，使用者
 
 繁体转换为简体的方案文件为 `t2s.json` ，字表文件名为 `TSCharacters.txt` ，词典文件名为 `TSPhrases.txt` 。
 
+只将异体字转换为简体的方案文件为 `v2s.json` ，字表文件名为 `VSCharacters.txt` ，词典文件名为 `VSPhrases.txt` 。
+
 简体转换为规范繁体的方案文件为 `s2t.json` ，字表文件名为 `STCharacters.txt` ，词典文件名为 `STPhrases.txt` 。
 
 ### 2.规范繁体转换方案如何应用于小狼毫（Rime）输入法
