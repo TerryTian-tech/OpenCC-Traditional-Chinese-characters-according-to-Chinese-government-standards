@@ -9,5 +9,6 @@ certifi>=2026.07.22
 pywin32>=306
 Pillow>=9.0
 pdfminer.six>=20231228
+cryptography==42.0.8
 reportlab>=4.2
 pypdf>=3.9

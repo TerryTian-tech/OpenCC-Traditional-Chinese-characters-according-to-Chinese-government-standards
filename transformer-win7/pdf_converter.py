@@ -24,7 +24,6 @@ try:
                                 LITERAL_INLINE_DEVICE_RGB)
     from pdfminer.layout import LTChar, LTContainer, LTCurve, LTImage, LTRect
     from pdfminer.pdfdocument import PDFDocument as _MinerDocument
-    from pdfminer.pdfdocument import PDFPasswordIncorrect
     from pdfminer.pdfinterp import PDFPageInterpreter, PDFResourceManager
     from pdfminer.pdfpage import PDFPage
     from pdfminer.pdfparser import PDFParser
@@ -1215,19 +1214,20 @@ def convert_pdf_file(
         parser = PDFParser(fp)
         miner_doc = _MinerDocument(parser)
         pages = list(PDFPage.create_pages(miner_doc))
-    except PDFPasswordIncorrect:
-        log("错误：无法读取 PDF 文件 - 该文件已加密，本工具暂不支持带密码的 PDF")
-        if fp is not None:
-            fp.close()
-        return False
     except Exception as e:
+        # 注意：不要在 except 子句里引用按名字导入的异常类（如 pdfminer 的
+        # PDFPasswordIncorrect）——except 子句的名字是异常发生时才求值的，
+        # 打包器（Nuitka 等）处理条件导入时可能丢失该名字绑定，导致 NameError
+        # 反而把真实异常顶掉。改为按异常类名与消息文本分类。
         msg = str(e)
-        log(f"错误：无法读取 PDF 文件 - {msg}")
-        if 'password' in msg.lower() or 'encrypt' in msg.lower():
-            log("提示：该文件已加密，本工具暂不支持带密码的 PDF")
-        elif 'head' in msg.lower() or 'EOF' in msg or 'format' in msg.lower() \
-                or 'syntax' in msg.lower() or 'xref' in msg.lower():
-            log("提示：该文件可能不是有效的 PDF 文件")
+        ename = type(e).__name__
+        if 'Password' in ename or 'password' in msg.lower() or 'encrypt' in msg.lower():
+            log("错误：无法读取 PDF 文件 - 该文件已加密，本工具暂不支持带密码的 PDF")
+        else:
+            log(f"错误：无法读取 PDF 文件 - {ename}: {msg}")
+            if 'head' in msg.lower() or 'EOF' in msg or 'format' in msg.lower() \
+                    or 'syntax' in msg.lower() or 'xref' in msg.lower():
+                log("提示：该文件可能不是有效的 PDF 文件")
         if fp is not None:
             fp.close()
         return False
