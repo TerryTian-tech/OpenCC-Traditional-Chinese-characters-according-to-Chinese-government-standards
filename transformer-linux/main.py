@@ -637,8 +637,7 @@ class ModernUI(QMainWindow):
 
         # 校对模式说明
         pdf_desc = QLabel(
-            "勾选后，PDF转换输出的文档中被转换修改的汉字将以黄色底纹标出，便于校对。\n"
-            "标点符号变化与输出字体替换不属于修改，不标。"
+            "勾选后，PDF转换输出的文档中被转换修改的汉字将以黄色底纹标出，便于校对。"
         )
         pdf_desc.setWordWrap(True)
         pdf_group_layout.addWidget(pdf_desc)
