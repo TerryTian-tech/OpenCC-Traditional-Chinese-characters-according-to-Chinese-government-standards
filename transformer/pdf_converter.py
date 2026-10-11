@@ -1,3 +1,4 @@
+import difflib
 import io
 import os
 import re
@@ -593,6 +594,76 @@ def _split_converted_by_prefix(cc, full: str, positions: List[Tuple[int, int]],
 
 
 # ---------------------------------------------------------------------------
+# 修改字高亮（可选）：转换中被修改的汉字以黄色底纹标出
+# ---------------------------------------------------------------------------
+
+# 高亮底纹颜色（黄色）
+_HIGHLIGHT_RGB = (1.0, 1.0, 0.0)
+
+# 汉字（表意文字）码位区间，用于判断“修改的字”：标点、西文、数字等
+# 非汉字的变化不在其列；高亮只比较文字码位，与重建 PDF 时的输出字体
+# 替换（原文的宋体/黑体/方正白体等换成系统字体）无关
+_CJK_IDEOGRAPH_RANGES = (
+    (0x3007, 0x3007),    # 〇
+    (0x3400, 0x4DBF),    # 扩展A
+    (0x4E00, 0x9FFF),    # 基本区
+    (0xF900, 0xFAFF),    # 兼容表意文字
+    (0x20000, 0x2A6DF),  # 扩展B
+    (0x2A700, 0x2EBEF),  # 扩展C~F
+    (0x2F800, 0x2FA1F),  # 兼容表意文字增补
+    (0x30000, 0x323AF),  # 扩展G~H
+)
+
+
+def _is_cjk_ideograph(ch: str) -> bool:
+    """是否为汉字（表意文字，含扩展区、兼容区与〇）"""
+    cp = ord(ch)
+    if 0x3400 <= cp <= 0x9FFF:  # 扩展A + 基本区，绝大多数命中在此
+        return True
+    return any(lo <= cp <= hi for lo, hi in _CJK_IDEOGRAPH_RANGES)
+
+
+def _char_is_modified_hanzi(orig: str, conv: str) -> bool:
+    """
+    单个码位的替换是否属于应高亮的“修改的字”：码位发生变化，且原文
+    或译文至少一方是汉字。兼容区与基本区之间的同形换码（如 U+F900
+    豈 → U+8C48 豈）码位确实变了，按修改高亮；标点符号（含全半角
+    互换）与西文、数字的变化不高亮。
+    """
+    if orig == conv:
+        return False
+    return _is_cjk_ideograph(orig) or _is_cjk_ideograph(conv)
+
+
+def _highlight_mask(orig: str, conv: str) -> List[bool]:
+    """
+    逐字比较原文与译文，得到与译文等长的高亮掩码（True=该字被修改）。
+
+    长度一致（繁简映射绝大多数 1:1）时按位比较；长度变化（罕见的多字
+    映射，如 s2twp 的“内存”→“記憶體”）用最长公共子序列对齐，只在
+    替换/插入区块内高亮汉字——equal 区块是未变化的原文，无需比较。
+    """
+    n = len(conv)
+    if n == 0:
+        return []
+    if len(orig) == n:
+        return [_char_is_modified_hanzi(o, c) for o, c in zip(orig, conv)]
+    mask = [False] * n
+    matcher = difflib.SequenceMatcher(a=orig, b=conv, autojunk=False)
+    for tag, _i1, _i2, j1, j2 in matcher.get_opcodes():
+        if tag == 'equal':
+            continue
+        for j in range(j1, j2):
+            mask[j] = _is_cjk_ideograph(conv[j])
+    return mask
+
+
+def _highlight_rect_metrics(size: float) -> Tuple[float, float]:
+    """高亮底纹相对基线的几何：下探 0.80em、总高 1.05em（约覆盖汉字字身框）"""
+    return -0.80 * size, 1.05 * size
+
+
+# ---------------------------------------------------------------------------
 # 文本绘制（中英分字体 + 按脚本切分 + 宽度自适应）
 # ---------------------------------------------------------------------------
 
@@ -611,7 +682,8 @@ _OPEN_PUNCT_INK_RIGHT = 0.9  # 开标点墨迹右缘约占字身框比例（宋�
 
 def _draw_text(page_builder, text: str, x: float, y: float, run_w: float,
                font_name: Optional[str], size: float, color, is_bold: bool,
-               fonts: dict, char_xs: Optional[List[float]] = None) -> bool:
+               fonts: dict, char_xs: Optional[List[float]] = None,
+               highlight_mask: Optional[List[bool]] = None) -> bool:
     """
     按脚本分组绘制一段已转换的文本到指定位置。
 
@@ -625,6 +697,8 @@ def _draw_text(page_builder, text: str, x: float, y: float, run_w: float,
       左漂，在段尾与后一单元之间留下空隙。char_xs 对应原文文本，长度与
       转换后文本一致时可用；OpenCC 短语转换可能改变字符数（如 s2twp 的
       “内存”→“記憶體”），此时回退到整段重排
+    - highlight_mask 与 text 等长，为 True 的字先铺黄色底纹再绘制文字
+      （内容流按调用顺序叠放，先绘制的底纹位于文字下层）
     - 整段重排路径（span 回退、转换改变字符数）中，中文标点独立成段：
       输出中文字体的标点字身框是全宽的，而源文档标点推进宽度常只有一半，
       按自然宽度推进会触发缩字号、把标点明显变小。标点单独定位后只压缩
@@ -659,6 +733,20 @@ def _draw_text(page_builder, text: str, x: float, y: float, run_w: float,
     # char_xs 与原文等长；转换后长度一致（OpenCC 多数映射为 1:1）时可用
     if char_xs and len(char_xs) == len(text):
         n = len(char_xs)
+        # 修改字高亮：先铺黄色底纹，后绘制的文字位于其上层
+        if highlight_mask is not None:
+            dy, dh = _highlight_rect_metrics(size)
+            for i, marked in enumerate(highlight_mask[:n]):
+                if not marked:
+                    continue
+                cx = char_xs[i]
+                cell = (char_xs[i + 1] - cx if i + 1 < n
+                        else span_w - (cx - char_xs[0]))
+                if cell <= 0:
+                    cell = _measure(text[i], cjk_entry['path'], size) or size
+                page_builder.filled_rect(cx, y + dy, cell, dh,
+                                         _HIGHLIGHT_RGB[0], _HIGHLIGHT_RGB[1],
+                                         _HIGHLIGHT_RGB[2])
         for i, (ch, cx) in enumerate(zip(text, char_xs)):
             draw_x = cx
             if _OPEN_PUNCT_RE.fullmatch(ch):
@@ -713,6 +801,28 @@ def _draw_text(page_builder, text: str, x: float, y: float, run_w: float,
                 widths = [w * 0.5 if seg[3] else w
                           for w, seg in zip(widths, segments)]
 
+    # 修改字高亮：整段重排路径中按段内自然字宽定位各字铺底纹
+    # （段宽已压缩/缩放时按比例归一，保证底纹与实际绘制位置一致）
+    if highlight_mask is not None:
+        dy, dh = _highlight_rect_metrics(size)
+        hx = x
+        base = 0  # 当前段首字在掩码中的索引
+        for seg, width in zip(segments, widths):
+            char_ws = [_measure(ch, seg[2], size) for ch in seg[0]]
+            total = sum(w for w in char_ws if w)
+            scale = (width / total) if (width and total > 0) else 1.0
+            cx = hx
+            for k, w in enumerate(char_ws):
+                w = (w if w is not None else size) * scale
+                if base + k < len(highlight_mask) and highlight_mask[base + k] and w > 0:
+                    page_builder.filled_rect(cx, y + dy, w, dh,
+                                             _HIGHLIGHT_RGB[0], _HIGHLIGHT_RGB[1],
+                                             _HIGHLIGHT_RGB[2])
+                cx += w
+            base += len(seg[0])
+            if width:
+                hx += width
+
     for seg, width, natural in zip(segments, widths, naturals):
         draw_x = x
         if (seg[3] and width and natural and width < natural
@@ -727,14 +837,16 @@ def _draw_text(page_builder, text: str, x: float, y: float, run_w: float,
 
 
 def _draw_span_text(page_builder, text: str, span, fonts: dict,
-                    ox: float, oy: float) -> bool:
+                    ox: float, oy: float,
+                    highlight_mask: Optional[List[bool]] = None) -> bool:
     """按 span 绘制已转换的文本（字符级聚合失败时的回退路径）"""
     if not text or not text.strip():
         return False
     size = span.font_size if span.font_size and span.font_size > 0 else 10.0
     return _draw_text(page_builder, text,
                       span.bbox[0] - ox, span.bbox[1] - oy, span.bbox[2],
-                      span.font_name, size, span.color, span.is_bold, fonts)
+                      span.font_name, size, span.color, span.is_bold, fonts,
+                      highlight_mask=highlight_mask)
 
 
 # ---------------------------------------------------------------------------
@@ -829,7 +941,8 @@ def convert_pdf_file(
     output_folder: str,
     conversion_type: str,
     log_callback: Optional[Callable[[str], None]] = None,
-    is_cancelled_callback: Optional[Callable[[], bool]] = None
+    is_cancelled_callback: Optional[Callable[[], bool]] = None,
+    highlight_changes: bool = False
 ) -> Union[str, bool]:
     """
     转换 PDF 文件中的文本内容并输出新的 PDF 文件。
@@ -852,6 +965,10 @@ def convert_pdf_file(
         日志回调函数，接收字符串参数
     is_cancelled_callback : callable or None
         取消检查回调，返回 True 表示用户请求取消
+    highlight_changes : bool
+        是否为转换中修改的字添加黄色高亮。只高亮汉字的实质变化；
+        标点符号变化，以及重建时整体替换输出字体（宋体/黑体等）带来的
+        观感差异不属于“修改”，不高亮
 
     返回
     -------
@@ -889,6 +1006,9 @@ def convert_pdf_file(
     except Exception as e:
         log(f"错误：OpenCC 初始化失败 ({conversion_type}) - {e}")
         return False
+
+    if highlight_changes:
+        log("修改字高亮已启用：被转换修改的汉字将以黄色底纹标出（标点符号变化与输出字体替换不标）")
 
     # --- 查找输出用字体（固定候选路径 -> 目录扫描，按风格类别，带回退链） ---
     sans = _find_font(_CJK_SANS_CANDIDATES, 'sans', log)
@@ -978,6 +1098,7 @@ def convert_pdf_file(
             fonts[key] = {'name': registered_by_path[path], 'path': path}
 
         converted_spans = 0
+        highlighted_chars = 0
         warned_rotation = False
 
         for page_index in range(total_pages):
@@ -1035,12 +1156,17 @@ def convert_pdf_file(
                 converted_texts = _convert_page_texts(
                     cc, [run['text'] for run in char_runs], page_index + 1, log)
                 for run, converted in zip(char_runs, converted_texts):
+                    mask = (_highlight_mask(run['text'], converted)
+                            if highlight_changes else None)
                     if _draw_text(page_builder, converted,
                                   run['x'] - cx0, run['y'] - cy0, run['w'],
                                   run['font_name'], run['size'], run['color'],
                                   run['bold'], fonts,
-                                  char_xs=[v - cx0 for v in run.get('xs', ())] or None):
+                                  char_xs=[v - cx0 for v in run.get('xs', ())] or None,
+                                  highlight_mask=mask):
                         converted_spans += 1
+                        if mask:
+                            highlighted_chars += sum(mask)
             else:
                 # 回退：按 span 重排
                 try:
@@ -1052,8 +1178,13 @@ def convert_pdf_file(
                 converted_texts = _convert_page_texts(
                     cc, [span.text or '' for span in spans], page_index + 1, log)
                 for span, converted in zip(spans, converted_texts):
-                    if _draw_span_text(page_builder, converted, span, fonts, cx0, cy0):
+                    mask = (_highlight_mask(span.text or '', converted)
+                            if highlight_changes else None)
+                    if _draw_span_text(page_builder, converted, span, fonts,
+                                       cx0, cy0, mask):
                         converted_spans += 1
+                        if mask:
+                            highlighted_chars += sum(mask)
 
             builder = page_builder.done()
 
@@ -1074,7 +1205,10 @@ def convert_pdf_file(
             return False
 
         log(f"已保存: {output_path}")
-        log(f"PDF 转换完成：共 {total_pages} 页，转换 {converted_spans} 个文本片段")
+        summary = f"PDF 转换完成：共 {total_pages} 页，转换 {converted_spans} 个文本片段"
+        if highlight_changes:
+            summary += f"，高亮 {highlighted_chars} 个修改字"
+        log(summary)
         return output_path
     finally:
         try:
