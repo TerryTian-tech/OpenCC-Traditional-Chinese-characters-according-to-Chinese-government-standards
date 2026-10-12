@@ -451,6 +451,25 @@ def _measure(text: str, font_path: str, size: float) -> Optional[float]:
         return None
 
 
+def _estimate_width(text: str, size: float) -> float:
+    """无法用字体测量时的保守宽度估算：宽字符（CJK/全角等）按 1em、其余按 0.55em"""
+    wide = 0
+    for ch in text:
+        cp = ord(ch)
+        if (0x1100 <= cp <= 0x115F or 0x2E80 <= cp <= 0xA4CF or 0xAC00 <= cp <= 0xD7A3
+                or 0xF900 <= cp <= 0xFAFF or 0xFE30 <= cp <= 0xFE4F
+                or 0xFF00 <= cp <= 0xFF60 or 0xFFE0 <= cp <= 0xFFE6
+                or 0x20000 <= cp <= 0x3FFFD):
+            wide += 1
+    return (wide + (len(text) - wide) * 0.55) * size
+
+
+def _measure_or_estimate(text: str, font_path: str, size: float) -> float:
+    """测量优先，测量失败回退估算——保证任何段都有有限宽度可推进绘制位置"""
+    w = _measure(text, font_path, size)
+    return w if w is not None else _estimate_width(text, size)
+
+
 # ---------------------------------------------------------------------------
 # 文本绘制（中英分字体 + 按脚本切分 + 宽度自适应）
 # ---------------------------------------------------------------------------
@@ -576,7 +595,9 @@ def _walk_layout(item, content: dict, transform) -> None:
         m = item.matrix
         if transform is not None:
             m = mult_matrix(m, transform)
-            upright = (m[1] == 0.0 and m[2] == 0.0 and m[0] * m[3] > 0)
+            # 用容差而非精确相等：个别生成器会写出 1e-10 量级的非零分量，
+            # 精确比较会把整页字符误判为“旋转”而丢弃
+            upright = (abs(m[1]) < 1e-9 and abs(m[2]) < 1e-9 and m[0] * m[3] > 0)
         else:
             upright = item.upright
         if not upright:
@@ -1010,28 +1031,30 @@ def _draw_text(canvas, text: str, x: float, y: float, run_w: float,
             punct = _COMPRESSIBLE_PUNCT_RE.fullmatch(sub) is not None
             segments.append([sub, entry['name'], entry['path'], punct])
 
-    # 宽度自适应：测量失败则不做缩放
-    widths = [_measure(seg[0], seg[2], size) for seg in segments]
-    naturals = [None] * len(segments)
-    if all(w is not None for w in widths):
-        naturals = list(widths)
-        total = sum(widths)
-        if total > span_w + 0.5 and total > 0:
-            punct_total = sum(w for w, seg in zip(widths, segments) if seg[3])
-            deficit = total - span_w
-            if punct_total > 0 and deficit <= punct_total * 0.55:
-                # 只压缩标点推进宽度（不低于半宽），字形保持原字号
-                ratio = max(1.0 - deficit / punct_total, 0.45)
-                widths = [w * ratio if seg[3] else w
-                          for w, seg in zip(widths, segments)]
-            else:
-                # 标点压到半宽仍放不下：先压标点，剩余缺口再缩字号
-                scale_denom = total - punct_total * 0.5
-                scale = max(span_w / scale_denom, 0.5) if scale_denom > 0 else 0.5
-                size *= scale
-                widths = [_measure(seg[0], seg[2], size) for seg in segments]
-                widths = [w * 0.5 if seg[3] else w
-                          for w, seg in zip(widths, segments)]
+    # 宽度自适应：真实测量值用于开标点定位（naturals），测量失败的段用
+    # 估算宽度推进绘制位置——否则 x 不前进，后续段会画到同一位置重叠
+    measured = [_measure(seg[0], seg[2], size) for seg in segments]
+    naturals = list(measured)
+    widths = [w if w is not None else _estimate_width(seg[0], size)
+              for w, seg in zip(measured, segments)]
+    total = sum(widths)
+    if total > span_w + 0.5 and total > 0:
+        punct_total = sum(w for w, seg in zip(widths, segments) if seg[3])
+        deficit = total - span_w
+        if punct_total > 0 and deficit <= punct_total * 0.55:
+            # 只压缩标点推进宽度（不低于半宽），字形保持原字号
+            ratio = max(1.0 - deficit / punct_total, 0.45)
+            widths = [w * ratio if seg[3] else w
+                      for w, seg in zip(widths, segments)]
+        else:
+            # 标点压到半宽仍放不下：先压标点，剩余缺口再缩字号
+            scale_denom = total - punct_total * 0.5
+            scale = max(span_w / scale_denom, 0.5) if scale_denom > 0 else 0.5
+            size *= scale
+            # 缩放后重测也可能失败（None），统一走估算兜底，避免 None*0.5 崩溃
+            widths = [_measure_or_estimate(seg[0], seg[2], size) for seg in segments]
+            widths = [w * 0.5 if seg[3] else w
+                      for w, seg in zip(widths, segments)]
 
     # 修改字高亮：整段重排路径中按段内自然字宽定位各字铺底纹
     # （段宽已压缩/缩放时按比例归一，保证底纹与实际绘制位置一致）
@@ -1422,7 +1445,6 @@ def convert_pdf_file(
         highlighted_chars = 0
         text_pages = 0
         warned_rotation = False
-        pypdf_images_cache = {}
 
         for page_index, page in enumerate(pages):
             if is_cancelled_callback and is_cancelled_callback():
@@ -1488,12 +1510,15 @@ def convert_pdf_file(
             has_text = content['char_total'] > 0
 
             # --- 图片（先画，位于文字下层）；扫描页以此保留原貌 ---
+            _pypdf_page_images = []
+
             def _pypdf_images_lazy() -> dict:
-                cached = pypdf_images_cache.get(page_index)
-                if cached is None:
-                    cached = _pypdf_images_for_page(pypdf_reader, page_index)
-                    pypdf_images_cache[page_index] = cached
-                return cached
+                # 只缓存当前页：pypdf 解出的 PIL Image 体积大（整页扫描图可
+                # 达数 MB），跨页常驻缓存会在几百页的文件上把内存吃满
+                if not _pypdf_page_images:
+                    _pypdf_page_images.append(
+                        _pypdf_images_for_page(pypdf_reader, page_index))
+                return _pypdf_page_images[0]
 
             drawn_images = 0
             try:
