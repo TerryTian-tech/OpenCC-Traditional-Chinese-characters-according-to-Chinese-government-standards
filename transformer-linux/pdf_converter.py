@@ -474,6 +474,35 @@ def _char_is_bold(ch) -> bool:
     return ('bold' in weight) or ('heavy' in weight) or ('black' in weight)
 
 
+def _upright_page_is_vertical(chars: list) -> bool:
+    """
+    依据直立字符的坐标分布判断版面方向：y 方向聚类数远多于 x 方向聚类数
+    （且行数足够）时为竖排版面。
+
+    竖排的中日文正文（方正书版/InDesign/Word 等）字形直立、沿列自上而下
+    排布，与“字形旋转 90° 的侧排文字”（_sideways 路径）是两种不同的实现；
+    前者的字符旋转角为 0，只能靠坐标分布识别。用聚类计数而非去重计数，
+    避免基线/列位的微小抖动把同一行/列拆成多个。字符太少的页面不做判定
+    （保持横排处理；单列少量字符按行读取时 y 降序恰好也是正确阅读序）。
+    """
+    if len(chars) < 12:
+        return False
+    sizes = sorted((c.font_size or 10.0) for c in chars)
+    tol = max(sizes[len(sizes) // 2] * 0.35, 1.5)
+
+    def _cluster_count(values) -> int:
+        count, anchor = 0, None
+        for v in sorted(values):
+            if anchor is None or v - anchor > tol:
+                count += 1
+                anchor = v
+        return count
+
+    n_rows = _cluster_count(c.origin_y for c in chars)
+    n_cols = _cluster_count(c.origin_x for c in chars)
+    return n_rows >= 4 and n_rows > n_cols * 2
+
+
 def _char_runs_from_page(doc: PdfDocument, page_index: int,
                          log: Callable[[str], None]) -> Optional[List[dict]]:
     """
@@ -490,11 +519,19 @@ def _char_runs_from_page(doc: PdfDocument, page_index: int,
     被无谓拆散。旋转字符（竖排文字、侧排标注）不再丢弃：沿其阅读方向聚合成
     单元后按原位横排绘制（内容不丢失，字形方向与原文可能不同）。
 
+    版面方向检测为竖排时（直立字形沿列排布，见 _upright_page_is_vertical），
+    直立字符改按“列从右到左、列内自上而下”聚合：竖排按行横读会把各列
+    同一高度的字交织成乱序文本，一对多转换的词上下文（如“於是→于是”、
+    “彷彿→仿佛”）完全失效；按列读取后上下文与阅读序一致。竖排列获得
+    自右而左递增的列号（写入 line 字段，rot 保持 0、vert 置 True），
+    供跨单元连续性判断使用。
+
     返回 None 表示字符提取失败或无可用字符（调用方回退到 span 模式），
     否则返回单元列表：
-    {text, x, y, w, font_name, size, color, bold, rot, line, lx0, xs, ys}，
-    坐标为 PDF 用户空间，xs/ys 为逐字坐标（与 text 等长），
-    line 为所在水平行的行号（旋转列为 None），lx0 为所在行的行首 x。
+    {text, x, y, w, font_name, size, color, bold, rot, line, lx0, xs, ys,
+    vert}，坐标为 PDF 用户空间，xs/ys 为逐字坐标（与 text 等长），
+    line 为所在水平行的行号（竖排列为列号，旋转列为 None），lx0 为所在
+    行的行首 x，vert 表示是否为竖排列单元。
     """
     try:
         chars = doc.extract_chars(page_index)
@@ -521,12 +558,12 @@ def _char_runs_from_page(doc: PdfDocument, page_index: int,
         return 45.0 <= rot < 135.0 or 225.0 <= rot < 315.0
 
     usable = [ch for ch in chars if ch.char]
+    upright = [ch for ch in usable if not _sideways(_rot_deg(ch))]
+    sideways = [ch for ch in usable if _sideways(_rot_deg(ch))]
 
     # 水平字符按基线聚成行（自上而下，行内按 x）；侧排字符按列聚合（自左而右，列内按 y 自上而下）
-    horiz = sorted((ch for ch in usable if not _sideways(_rot_deg(ch))),
-                   key=lambda c: (-c.origin_y, c.origin_x))
-    vert = sorted((ch for ch in usable if _sideways(_rot_deg(ch))),
-                  key=lambda c: (c.origin_x, -c.origin_y))
+    horiz = sorted(upright, key=lambda c: (-c.origin_y, c.origin_x))
+    vert = sorted(sideways, key=lambda c: (c.origin_x, -c.origin_y))
 
     h_lines: List[List] = []  # [锚点基线, 字符列表]
     for ch in horiz:
@@ -543,26 +580,45 @@ def _char_runs_from_page(doc: PdfDocument, page_index: int,
             v_lines.append([ch.origin_x, [ch]])
 
     # 行/列按（最靠上的字符 y, 最靠左的字符 x）排序，保持整体自上而下、自左而右；
-    # 水平行获得自上而下递增的行号（旋转列为 None），供跨行连续性判断使用
-    lines = []  # (字符列表, 是否旋转列)
-    for _anchor, chs in h_lines:
-        chs.sort(key=lambda c: c.origin_x)
-        lines.append((chs, False))
+    # 水平行获得自上而下递增的行号（旋转列为 None），供跨行连续性判断使用。
+    # 竖排版面改为：直立字符按 x 聚成列、按“列从右到左”编号（列内自上而下），
+    # 列号写入 line 字段（rot 保持 0、vert 置 True），侧排列仍附在最后。
+    vertical_page = _upright_page_is_vertical(upright)
+    lines = []  # (字符列表, 是否旋转列, 竖排列号或 None)
+    if vertical_page:
+        cols: List[List] = []  # [锚点列 x, 字符列表]，x 升序贪心聚类
+        for ch in sorted(upright, key=lambda c: c.origin_x):
+            if cols and abs(ch.origin_x - cols[-1][0]) <= _line_tol(_char_size(ch)):
+                cols[-1][1].append(ch)
+            else:
+                cols.append([ch.origin_x, [ch]])
+        cols.sort(key=lambda col: -col[0])  # 阅读序：列从右到左
+        for idx, (_ax, col_chars) in enumerate(cols):
+            col_chars.sort(key=lambda c: -c.origin_y)
+            lines.append((col_chars, False, idx))
+    else:
+        for _anchor, chs in h_lines:
+            chs.sort(key=lambda c: c.origin_x)
+            lines.append((chs, False, None))
     for _anchor, chs in v_lines:
         chs.sort(key=lambda c: -c.origin_y)
-        lines.append((chs, True))
-    lines.sort(key=lambda entry: (-max(c.origin_y for c in entry[0]),
-                                  min(c.origin_x for c in entry[0])))
+        lines.append((chs, True, None))
+    if not vertical_page:
+        lines.sort(key=lambda entry: (-max(c.origin_y for c in entry[0]),
+                                      min(c.origin_x for c in entry[0])))
 
     runs: List[dict] = []
     cur = None
     tail = None  # 当前单元的最后一个字符
 
     line_no = 0
-    for chs, sideways_line in lines:
-        # 行号只编给水平行（连续且不被旋转列的插入打断），旋转列为 None
+    for chs, sideways_line, vcol in lines:
+        # 行号只编给水平行（连续且不被旋转列的插入打断）；竖排列写列号
+        # （自右而左递增），旋转列为 None
         line_id = None
-        if not sideways_line:
+        if vcol is not None:
+            line_id = vcol
+        elif not sideways_line:
             line_id = line_no
             line_no += 1
         line_x0 = min(c.origin_x for c in chs)
@@ -583,7 +639,13 @@ def _char_runs_from_page(doc: PdfDocument, page_index: int,
 
             merged = False
             if cur is not None and cur['style'] == style:
-                if _sideways(rot):
+                if vcol is not None:
+                    # 竖排列内：同列（x 相近）且纵向步进约 1em 即合并
+                    same_col = abs(ch.origin_x - tail.origin_x) <= _line_tol(size)
+                    dy = tail.origin_y - ch.origin_y
+                    if same_col and 0.0 < dy <= size * 1.6:
+                        merged = True
+                elif _sideways(rot):
                     # 侧排字符沿 y 方向阅读：同列（x 相近）且垂直间距正常即合并
                     same_col = abs(ch.origin_x - tail.origin_x) <= _line_tol(size)
                     dy = abs(ch.origin_y - tail.origin_y)
@@ -622,6 +684,7 @@ def _char_runs_from_page(doc: PdfDocument, page_index: int,
                     'lx0': line_x0,
                     'xs': [ch.origin_x],
                     'ys': [ch.origin_y],
+                    'vert': vcol is not None,
                 }
                 runs.append(cur)
                 tail = ch
@@ -657,6 +720,9 @@ def _runs_contiguity(runs: List[dict]) -> List[bool]:
     判断每个绘制单元与其前一个在版面上是否连续（供 _convert_page_texts
     决定直接拼接还是插入换行分隔）：
 
+    - 竖排列单元（vert）之间：同列且与前一单元底部的纵向间距不超过约
+      1.6em：连续——列内风格切换拆开的单元之间可能正是一个词；跨列
+      （列边界、页眉列/正文列/脚注列）不连续，用换行分隔；
     - 同一行且水平间距不超过约 1em（含轻微重叠）：连续——字体切换、两端
       对齐拉伸拆开的单元之间可能正是一个词（“电”“复”分属宋体与 Times）；
     - 相邻两行（行距 0.75em~2em，即正常行距）且两行行首 x 对齐（相差
@@ -670,12 +736,21 @@ def _runs_contiguity(runs: List[dict]) -> List[bool]:
     prev = None
     for run in runs:
         flag = False
-        if (prev is not None and not run.get('rot') and not prev.get('rot')
+        if (prev is not None and run.get('vert') and prev.get('vert')
+                and run.get('line') is not None and run['line'] == prev.get('line')):
+            # 同一竖排列：与前一单元最后一个字的纵向间距正常即连续
+            size = max(run.get('size', 10.0), prev.get('size', 10.0))
+            prev_bottom = (prev.get('ys') or [prev['y']])[-1]
+            dy = prev_bottom - run['y']
+            flag = 0.0 < dy <= size * 1.6
+        elif (prev is not None and not run.get('vert') and not prev.get('vert')
+                and not run.get('rot') and not prev.get('rot')
                 and run.get('line') is not None and run['line'] == prev.get('line')):
             size = max(run.get('size', 10.0), prev.get('size', 10.0))
             gap = run['x'] - (prev['x'] + prev.get('w', 0.0))
             flag = -0.3 * size <= gap <= size
-        elif (prev is not None and not run.get('rot') and not prev.get('rot')
+        elif (prev is not None and not run.get('vert') and not prev.get('vert')
+                and not run.get('rot') and not prev.get('rot')
                 and run.get('line') is not None and prev.get('line') is not None
                 and run['line'] == prev['line'] + 1):
             size = max(run.get('size', 10.0), prev.get('size', 10.0))
@@ -1390,6 +1465,7 @@ def convert_pdf_file(
 
         converted_spans = 0
         highlighted_chars = 0
+        vertical_pages = 0
 
         for page_index in range(total_pages):
             if is_cancelled_callback and is_cancelled_callback():
@@ -1460,6 +1536,8 @@ def convert_pdf_file(
             #     （连续拼接保留跨单元的词上下文；字符聚合避免推断空格拆开单词） ---
             char_runs = _char_runs_from_page(doc, page_index, log)
             if char_runs is not None:
+                if any(r.get('vert') for r in char_runs):
+                    vertical_pages += 1
                 contiguous = _runs_contiguity(char_runs)
                 converted_texts = _convert_page_texts(
                     cc, [run['text'] for run in char_runs], page_index + 1, log,
@@ -1532,6 +1610,8 @@ def convert_pdf_file(
 
         log(f"已保存: {output_path}")
         summary = f"PDF 转换完成：共 {total_pages} 页，转换 {converted_spans} 个文本片段"
+        if vertical_pages:
+            summary += f"（其中 {vertical_pages} 页为竖排版面，已按“列从右到左、列内自上而下”顺序转换）"
         if highlight_changes:
             summary += f"，高亮 {highlighted_chars} 个修改字"
         log(summary)
