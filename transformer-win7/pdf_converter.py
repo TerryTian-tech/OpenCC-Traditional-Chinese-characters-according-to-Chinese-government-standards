@@ -1,4 +1,5 @@
 import difflib
+import functools
 import io
 import os
 import re
@@ -424,7 +425,17 @@ def _find_font(exact_candidates: List[str], scan_key: str,
 # 文本宽度测量（PIL，用于精确推进绘制位置和自适应缩放）
 # ---------------------------------------------------------------------------
 
-_font_measure_cache = {}
+@functools.lru_cache(maxsize=128)
+def _measure_font(font_path: str, px: float) -> Optional[ImageFont.FreeTypeFont]:
+    """
+    加载用于测量的 PIL 字体对象，按 (路径, 字号) 进程内有限缓存——
+    长驻进程连续转换多份文件时不会无界累积字体对象。加载失败返回
+    None（同样被缓存，不会反复重试失败的路径）。
+    """
+    try:
+        return ImageFont.truetype(font_path, px or 1)
+    except Exception:
+        return None
 
 
 def _measure(text: str, font_path: str, size: float) -> Optional[float]:
@@ -434,16 +445,8 @@ def _measure(text: str, font_path: str, size: float) -> Optional[float]:
     """
     if not text:
         return 0.0
-    key = (font_path, round(size, 2))
-    font = _font_measure_cache.get(key)
+    font = _measure_font(font_path, round(size, 2))
     if font is None:
-        try:
-            font = ImageFont.truetype(font_path, round(size, 2) or 1)
-        except Exception:
-            _font_measure_cache[key] = False  # 标记该字体不可测量
-            return None
-        _font_measure_cache[key] = font
-    if font is False:
         return None
     try:
         return float(font.getlength(text))

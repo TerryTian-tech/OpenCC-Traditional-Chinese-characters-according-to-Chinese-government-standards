@@ -1,4 +1,5 @@
 import difflib
+import functools
 import io
 import os
 import re
@@ -372,7 +373,17 @@ def _find_font(exact_candidates: List[str], scan_key: str,
 # 文本宽度测量（PIL，用于精确推进绘制位置和自适应缩放）
 # ---------------------------------------------------------------------------
 
-_font_measure_cache = {}
+@functools.lru_cache(maxsize=128)
+def _measure_font(font_path: str, px: float) -> Optional[ImageFont.FreeTypeFont]:
+    """
+    加载用于测量的 PIL 字体对象，按 (路径, 字号) 进程内有限缓存——
+    长驻进程连续转换多份文件时不会无界累积字体对象。加载失败返回
+    None（同样被缓存，不会反复重试失败的路径）。
+    """
+    try:
+        return ImageFont.truetype(font_path, px or 1)
+    except Exception:
+        return None
 
 
 def _measure(text: str, font_path: str, size: float) -> Optional[float]:
@@ -382,16 +393,8 @@ def _measure(text: str, font_path: str, size: float) -> Optional[float]:
     """
     if not text:
         return 0.0
-    key = (font_path, round(size, 2))
-    font = _font_measure_cache.get(key)
+    font = _measure_font(font_path, round(size, 2))
     if font is None:
-        try:
-            font = ImageFont.truetype(font_path, round(size, 2) or 1)
-        except Exception:
-            _font_measure_cache[key] = False  # 标记该字体不可测量
-            return None
-        _font_measure_cache[key] = font
-    if font is False:
         return None
     try:
         return float(font.getlength(text))
@@ -484,6 +487,9 @@ def _upright_page_is_vertical(chars: list) -> bool:
     前者的字符旋转角为 0，只能靠坐标分布识别。用聚类计数而非去重计数，
     避免基线/列位的微小抖动把同一行/列拆成多个。字符太少的页面不做判定
     （保持横排处理；单列少量字符按行读取时 y 降序恰好也是正确阅读序）。
+    仅凭聚类计数会把窄横向版面（每行一两个字的小表格、表头等）误判为
+    竖排：真竖排的列内相邻字符步进约 1em（字身框），而窄横向版面按 x
+    聚出的“列”内纵向步进是行距（通常 >= 1.5em），据此再过滤一道。
     """
     if len(chars) < 12:
         return False
@@ -500,7 +506,29 @@ def _upright_page_is_vertical(chars: list) -> bool:
 
     n_rows = _cluster_count(c.origin_y for c in chars)
     n_cols = _cluster_count(c.origin_x for c in chars)
-    return n_rows >= 4 and n_rows > n_cols * 2
+    if not (n_rows >= 4 and n_rows > n_cols * 2):
+        return False
+
+    # 列内步进校验：与调用方一致按 x 贪心聚列，取列内相邻字符纵向步进
+    # （以字号归一）的中位数，须落在约 1em 附近才算真竖排。行距极紧
+    # （约 1.4em 以内）的窄表格仍可能通过，属可接受的残余误判。
+    cols: List[List] = []  # [锚点列 x, 字符列表]
+    for c in sorted(chars, key=lambda c: c.origin_x):
+        if cols and abs(c.origin_x - cols[-1][0]) <= tol:
+            cols[-1][1].append(c)
+        else:
+            cols.append([c.origin_x, [c]])
+    gaps: List[float] = []
+    for _ax, col in cols:
+        col.sort(key=lambda c: -c.origin_y)
+        for a, b in zip(col, col[1:]):
+            dy = a.origin_y - b.origin_y
+            if dy > 0:
+                gaps.append(dy / max(a.font_size or 10.0, b.font_size or 10.0))
+    if not gaps:
+        return False
+    gaps.sort()
+    return 0.75 <= gaps[len(gaps) // 2] <= 1.4
 
 
 def _char_runs_from_page(doc: PdfDocument, page_index: int,
@@ -629,13 +657,15 @@ def _char_runs_from_page(doc: PdfDocument, page_index: int,
             rot = _rot_deg(ch)
             # 合并判定用归一化字体名（剥离子集前缀、忽略大小写）与量化颜色：
             # 同一文字流的子集前缀不同（ABCDEF+SimSun / GHIJKL+SimSun）或
-            # 颜色仅差转换噪声时不应拆开，否则会削弱转换的词上下文
+            # 颜色仅差转换噪声时不应拆开，否则会削弱转换的词上下文。
+            # 旋转角也需量化——extract_chars 的 rotation_degrees 不吸附象限
+            # （逐字矩阵的角度可有微小抖动），不取整会拆散同一侧排列
             base_name = ch.font_name or ''
             if '+' in base_name:
                 base_name = base_name.split('+', 1)[1]
             color = ch.color or (0.0, 0.0, 0.0)
             color_key = tuple(round(min(max(c, 0.0), 1.0) * 255) for c in color)
-            style = (base_name.casefold(), round(size, 1), color_key, bold, rot)
+            style = (base_name.casefold(), round(size, 1), color_key, bold, round(rot, 1))
 
             merged = False
             if cur is not None and cur['style'] == style:
@@ -1231,12 +1261,18 @@ def _rotate_image_bytes(data: bytes, rotation: int) -> bytes:
     """
     按页面旋转方向旋转图像内容（输出页无法表达 /Rotate，图像内容需与
     坐标一起旋转才能与原文视觉一致）。旋转失败时原样返回。
+    JPEG 重编码用高质量参数（PIL 默认 quality=75 会让旋转页的图片明显
+    画质劣化）；PNG 本身无损，保持默认。
     """
     try:
         im = Image.open(io.BytesIO(data))
         angle = {90: -90, 180: 180, 270: 90}[rotation]
         buf = io.BytesIO()
-        im.rotate(angle, expand=True).save(buf, format=im.format or "PNG")
+        rotated = im.rotate(angle, expand=True)
+        if (im.format or "").upper() == "JPEG":
+            rotated.save(buf, format="JPEG", quality=95, subsampling=0)
+        else:
+            rotated.save(buf, format=im.format or "PNG")
         return buf.getvalue()
     except Exception:
         return data
