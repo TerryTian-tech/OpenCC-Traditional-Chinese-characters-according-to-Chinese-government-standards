@@ -422,6 +422,41 @@ def _find_font(exact_candidates: List[str], scan_key: str,
 
 
 # ---------------------------------------------------------------------------
+# reportlab 字体注册（进程级名字缓存）
+# ---------------------------------------------------------------------------
+
+# reportlab 的 pdfmetrics.registerFont 对同名动态字体会静默沿用旧对象
+# （fontName 已存在时整个存储分支被跳过），且 TTFont 还会按字面名
+# （face name）复用对象。若每次转换都用 Ft0/Ft1… 这类每轮重置的名字
+# 注册，同进程转换第二份文件时会解析到上一份文件的旧 TTFont 对象；
+# 两次转换各字体的惰性加载顺序不同（如 Ft1 一份是 Times、另一份是
+# 楷体）时，文字会落到不含这些字形的错误字体上，splitString 把缺字
+# 映射为 0 号空白字形，输出整段文字丢失。因此注册名按字体文件路径
+# 进程级固定——同名必同字体；TTFont 本身支持跨文档复用（子集状态
+# state[doc] 按文档隔离），顺带免去重复解析同一字体文件的开销。
+_font_names_by_path: dict = {}
+_font_failed_paths: set = set()
+
+
+def _register_font_once(path: str, log: Callable[[str], None]) -> Optional[str]:
+    """把字体文件注册进 reportlab 全局表，名字按路径进程级固定（失败缓存同样进程级）"""
+    name = _font_names_by_path.get(path)
+    if name:
+        return name
+    if path in _font_failed_paths:
+        return None
+    name = 'Ft%d' % len(_font_names_by_path)
+    try:
+        pdfmetrics.registerFont(TTFont(name, path, subfontIndex=0))
+    except Exception as e:
+        log(f"警告：字体 {os.path.basename(path)} 注册失败（{e}），相关文字将使用黑体渲染")
+        _font_failed_paths.add(path)
+        return None
+    _font_names_by_path[path] = name
+    return name
+
+
+# ---------------------------------------------------------------------------
 # 文本宽度测量（PIL，用于精确推进绘制位置和自适应缩放）
 # ---------------------------------------------------------------------------
 
@@ -1510,7 +1545,9 @@ def convert_pdf_file(
             return False
 
         # --- 初始化输出文档 ---
-        # 同一字体文件只注册一次（惰性，首次绘制时触发），多个逻辑名共享注册名
+        # 同一字体文件只注册一次（惰性，首次绘制时触发），多个逻辑名共享注册名；
+        # 注册名按路径进程级固定（见 _register_font_once 的说明），避免同进程
+        # 连续转换多份文件时名字与字体对象错位
         registered_by_path = {}
         failed_paths = set()
 
@@ -1519,11 +1556,8 @@ def convert_pdf_file(
                 return registered_by_path[path]
             if path in failed_paths:
                 return None
-            name = 'Ft%d' % len(registered_by_path)
-            try:
-                pdfmetrics.registerFont(TTFont(name, path, subfontIndex=0))
-            except Exception as e:
-                log(f"警告：字体 {os.path.basename(path)} 注册失败（{e}），相关文字将使用黑体渲染")
+            name = _register_font_once(path, log)
+            if name is None:
                 failed_paths.add(path)
                 return None
             registered_by_path[path] = name

@@ -965,6 +965,7 @@ def _draw_text(page_builder, text: str, x: float, y: float, run_w: float,
                font_name: Optional[str], size: float, color, is_bold: bool,
                fonts: dict, char_xs: Optional[List[float]] = None,
                char_ys: Optional[List[float]] = None,
+               vert: bool = False,
                highlight_mask: Optional[List[bool]] = None) -> bool:
     """
     按脚本分组绘制一段已转换的文本到指定位置。
@@ -1023,8 +1024,14 @@ def _draw_text(page_builder, text: str, x: float, y: float, run_w: float,
         # 文本沿竖直方向书写（char_xs 近似恒定、逐字位置由 char_ys 区分），
         # 180° 旋转页则是镜像递减。这些布局下“到下一字的水平距离”与按
         # span_w 推算的末字字格都不成立（会得到 0 或整行宽的错误值），
-        # 一律返回 0 走测量兜底——兜底宽度≈字宽，恰好覆盖方块字
-        stacked = has_ys and (max(char_xs) - min(char_xs)) < size * 0.5
+        # 一律返回 0 走测量兜底——兜底宽度≈字宽，恰好覆盖方块字。
+        # 判定须要求至少两个字符且 y 确有变化：半宽标点常独成单字单元
+        # （专用的标点字体与正文字体不同），单字符的 x 跨度恒为 0、
+        # 短标点串（如“，《”）的 x 跨度也不足半格，据旧判定会被误认为
+        # 竖排而把可用 cell 归零，开标点的左移修正因此失效
+        stacked = (has_ys and n > 1
+                   and (max(char_xs) - min(char_xs)) < size * 0.5
+                   and (max(char_ys) - min(char_ys)) > size * 0.5)
         mirrored = char_xs[-1] < char_xs[0] - size * 0.5
 
         def _cell(i: int) -> float:
@@ -1053,12 +1060,15 @@ def _draw_text(page_builder, text: str, x: float, y: float, run_w: float,
         for i, (ch, cx) in enumerate(zip(text, char_xs)):
             draw_x = cx
             cy = char_ys[i] if has_ys else y
-            if _OPEN_PUNCT_RE.fullmatch(ch):
-                # 开标点墨迹靠字身框右侧：源单元（到下一字的距离）比全宽
-                # 窄时，左移使墨迹右缘对齐单元右界，贴住后面的字
+            # 开标点左移仅用于水平单元：竖排列单元的字沿 y 推进，
+            # 水平左移会把字形挪出列外
+            if not vert and _OPEN_PUNCT_RE.fullmatch(ch):
+                # 开标点墨迹靠字身框右侧：源单元（到下一字的距离）明显比
+                # 全宽窄（0.9 余量排除测量浮点噪声，源本就是全宽标点的
+                # 不动）时，左移使墨迹右缘对齐单元右界，贴住后面的字
                 cell = _cell(i)
                 natural = _measure(ch, cjk_entry['path'], size)
-                if cell > 0 and natural and cell < natural:
+                if cell > 0 and natural and cell < natural * 0.9:
                     draw_x = cx + cell - _OPEN_PUNCT_INK_RIGHT * size
             if (_LATIN_RUN_RE.fullmatch(ch) and _LATIN_ALNUM_RE.search(ch)):
                 entry = latin_entry
@@ -1590,6 +1600,7 @@ def convert_pdf_file(
                                            run['bold'], fonts,
                                            char_xs=[p[0] for p in tpoints] or None,
                                            char_ys=[p[1] for p in tpoints] or None,
+                                           vert=run.get('vert', False),
                                            highlight_mask=mask)
                     except Exception as e:
                         # 单个单元绘制失败不应中断整份文件（如个别字符触发了
