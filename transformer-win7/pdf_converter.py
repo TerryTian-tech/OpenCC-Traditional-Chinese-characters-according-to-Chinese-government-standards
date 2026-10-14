@@ -1068,6 +1068,7 @@ def _draw_text(canvas, text: str, x: float, y: float, run_w: float,
                resolve_font: Callable[[str], Optional[dict]],
                char_xs: Optional[List[float]] = None,
                char_ys: Optional[List[float]] = None,
+               vert: bool = False,
                highlight_mask: Optional[List[bool]] = None) -> bool:
     """
     按脚本分组绘制一段已转换的文本到指定位置。
@@ -1129,8 +1130,13 @@ def _draw_text(canvas, text: str, x: float, y: float, run_w: float,
         # 书写轴判定：常规水平文本的 char_xs 单调递增；竖排单元的 char_xs
         # 近似恒定、逐字位置由 char_ys 区分——“到下一字的水平距离”与按
         # span_w 推算的末字字格在竖排下都不成立（会得到 0 附近的错误值），
-        # 高亮底纹与开标点定位改走测量兜底（兜底宽度≈字宽，恰好覆盖方块字）
-        stacked = has_ys and (max(char_xs) - min(char_xs)) < size * 0.5
+        # 高亮底纹与开标点定位改走测量兜底（兜底宽度≈字宽，恰好覆盖方块字）。
+        # 判定须要求至少两个字符且 y 确有变化：半宽标点常独成单字单元
+        # （专用的标点字体与正文字体不同），单字符的 x 跨度恒为 0，
+        # 据旧判定会被误认为竖排而把可用 cell 归零，开标点左移修正失效
+        stacked = (has_ys and n > 1
+                   and (max(char_xs) - min(char_xs)) < size * 0.5
+                   and (max(char_ys) - min(char_ys)) > size * 0.5)
 
         def _cell(i: int) -> float:
             if stacked:
@@ -1158,13 +1164,14 @@ def _draw_text(canvas, text: str, x: float, y: float, run_w: float,
         for i, (ch, cx) in enumerate(zip(text, char_xs)):
             draw_x = cx
             cy = char_ys[i] if has_ys else y
-            if not stacked and _OPEN_PUNCT_RE.fullmatch(ch):
-                # 开标点墨迹靠字身框右侧：源单元（到下一字的距离）比全宽
-                # 窄时，左移使墨迹右缘对齐单元右界，贴住后面的字（竖排下
-                # 该横向几何不成立，保持原位绘制）
+            if not vert and not stacked and _OPEN_PUNCT_RE.fullmatch(ch):
+                # 开标点墨迹靠字身框右侧：源单元（到下一字的距离）明显比
+                # 全宽窄（0.9 余量排除测量浮点噪声，源本就是全宽标点的
+                # 不动）时，左移使墨迹右缘对齐单元右界，贴住后面的字
+                # （竖排下该横向几何不成立，保持原位绘制）
                 cell = _cell(i)
                 natural = _measure(ch, cjk_entry['path'], size)
-                if cell > 0 and natural and cell < natural:
+                if cell > 0 and natural and cell < natural * 0.9:
                     draw_x = cx + cell - _OPEN_PUNCT_INK_RIGHT * size
             if (_LATIN_RUN_RE.fullmatch(ch) and _LATIN_ALNUM_RE.search(ch)):
                 entry = latin_entry
@@ -1720,6 +1727,7 @@ def convert_pdf_file(
                               run['bold'], resolve_font,
                               char_xs=[v - ox for v in run.get('xs', ())] or None,
                               char_ys=[v - oy for v in run.get('ys', ())] or None,
+                              vert=run.get('col') is not None,
                               highlight_mask=mask):
                     converted_spans += 1
                     if mask:
