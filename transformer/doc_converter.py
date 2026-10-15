@@ -1,6 +1,5 @@
 import os
 import re
-import difflib
 import tempfile
 import shutil
 import zipfile
@@ -505,54 +504,32 @@ class DocxTraditionalSimplifiedConverter:
 
     def _convert_paragraph_fallback(self, runs, texts, positions, converted_full, full_text):
         """
-        降级方案：当转换前后文本长度不一致时，使用 difflib 构建原文字符到
-        转换后字符的映射表，按映射关系为每个 run 收集对应的转换后文本。
+        降级方案：当转换前后文本长度不一致时（如 s2twp 的“内存”→“記憶體”、
+        自定义转换表的长短映射），用“前缀转换”确定每个 run 边界在译文中的
+        落点：对每个 run 的结束位置 p，len(convert(full[:p])) 即该边界的
+        译文位置——由 OpenCC 自身的分词决定，词内的字不会被错配到相邻
+        run，每个 run 拿到的正是“OpenCC 眼中属于自己的字”，run 级格式
+        与文字的对应关系最忠实（旧实现按 difflib 单字符映射，1:多映射会
+        丢中间字符、insert 会覆盖前字符映射、delete 会复制出重复字）。
+
+        前缀长度理论上可能非单调（run 边界切在词中间、自定义词典长短
+        映射），用钳制保证边界单调递增，最坏退化为按邻近边界对齐——
+        不丢字、不重复，仅对应关系略偏。
         """
-        # 构建字符级别的差异对齐
-        sm = difflib.SequenceMatcher(None, list(full_text), list(converted_full))
-        char_map = {}  # original_index -> converted_index
+        if not full_text:
+            return
+        bounds = [0]
+        for _s, e in positions:
+            q = len(self.convert_text(full_text[:e]))
+            bounds.append(min(max(q, bounds[-1]), len(converted_full)))
 
-        for op, i1, i2, j1, j2 in sm.get_opcodes():
-            if op == 'equal':
-                # 等长相同：原位置直接映射到转换后位置
-                for k in range(i2 - i1):
-                    char_map[i1 + k] = j1 + k
-            elif op == 'replace':
-                # 替换操作：按最短长度对齐，多出的字符归到最后一个映射位置
-                min_len = min(i2 - i1, j2 - j1)
-                for k in range(min_len):
-                    char_map[i1 + k] = j1 + k
-                if (i2 - i1) > min_len:
-                    # 原文多出的字符，映射到转换后最后一个对应位置
-                    for k in range(min_len, i2 - i1):
-                        char_map[i1 + k] = j1 + min_len - 1
-                elif (j2 - j1) > min_len:
-                    # 转换后多出的字符，追加到最后一个原文对应位置
-                    for k in range(min_len, j2 - j1):
-                        char_map[i1 + min_len - 1] = j1 + k
-            elif op == 'delete':
-                # 原文有字符被删除：这些字符映射到前一个有效位置
-                for k in range(i1, i2):
-                    ref = i1 - 1 if i1 > 0 else 0
-                    char_map[k] = char_map.get(ref, j1 if j1 < len(converted_full) else 0)
-            elif op == 'insert':
-                # 转换后插入了新字符：分配给前一个原文位置
-                if i1 > 0 and (i1 - 1) in char_map:
-                    char_map[i1 - 1] = j2 - 1
-
-        # 根据映射表为每个 run 收集对应的转换后字符
         for i, run in enumerate(runs):
             start, end = positions[i]
             # 关键：跳过空文本的 run，避免 clear_content() 销毁脚注引用等子元素
+            # 脚注引用、制表符、图片等特殊 run 的 text 为空但包含重要子元素
             if start == end:
                 continue
-            converted_chars = []
-            for pos in range(start, end):
-                if pos in char_map:
-                    cpos = char_map[pos]
-                    if cpos < len(converted_full):
-                        converted_chars.append(converted_full[cpos])
-            run.text = ''.join(converted_chars)
+            run.text = converted_full[bounds[i]:bounds[i + 1]]
 
     def _convert_tables(self, tables):
         """转换表格内容"""
