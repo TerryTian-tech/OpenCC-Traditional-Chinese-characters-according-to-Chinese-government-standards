@@ -126,7 +126,9 @@ python3 main.py
 
 *特别感谢易建鹏老师、胡馨媚老师、段亚彤老师在字表编制过程中提出的宝贵意见。
 
-## 使用本转换方案的项目
+## 第三方版本/使用本转换方案的项目
+
+* [TongguiMac · 规范繁体字形转换器](https://github.com/puyun1000/tongui-for-mac) 维护者：[萧苏晏](https://github.com/puyun1000)
 
 * [opencc-wasm](https://github.com/frankslin/OpenCC) （[npm](https://www.npmjs.com/package/opencc-wasm)、[演示页面](https://opencc.js.org/)）  维护者：[FranksLin](https://github.com/frankslin)
 
