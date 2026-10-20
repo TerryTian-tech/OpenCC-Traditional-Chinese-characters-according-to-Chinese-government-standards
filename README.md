@@ -81,7 +81,7 @@ patch:
 第五步：打开“小狼毫”输入法，在“中”字图标上点击鼠标右键，选择“重新部署”即可。
 
 ### 3.使用本仓库的规范繁体转换程序
-“transformer”文件夹下提供了一套模块化的 Python 转换程序，由 `main.py` 作为程序入口统一调度，内部为 `constants.py`（版本常量）、`updater.py`（在线更新检测）、`text_converter.py`（TXT/SRT/ASS/LRC 转换与编码检测）、`epub_converter.py`（EPUB转换模块）和 `doc_converter.py`（Word 文档转换）五个模块*。如果使用者希望从源码自行部署转换程序，可以按以下说明操作。
+“transformer”文件夹下提供了一套模块化的 Python 转换程序，由 `main.py` 作为程序入口统一调度，内部为 `constants.py`（版本常量）、`updater.py`（在线更新检测）、`text_converter.py`（TXT/SRT/ASS/LRC 转换与编码检测）、`epub_converter.py`（EPUB转换模块）、`pdf_converter.py`（PDF转换模块）和 `doc_converter.py`（Word 文档转换）六个模块*。如果使用者希望从源码自行部署转换程序，可以按以下说明操作。
 
 * AI转换模块作为第三方库引入，不进入主仓库的 Git 历史，亦不受 Apache 2.0 许可证覆盖。可进入 [LLMCC](https://github.com/TerryTian-tech/LLMCC) 仓库查看了解该模块详情。
 
