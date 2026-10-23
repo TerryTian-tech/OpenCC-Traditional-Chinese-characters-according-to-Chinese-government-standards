@@ -64,11 +64,15 @@ def convert_doc_to_docx(input_path, output_folder, log_callback=None, is_cancell
             return False
 
         word_app.Visible = False  # 不显示应用程序界面
+        try:
+            # 抑制模态对话框（格式转换/只读提示等），避免 COM 调用永久阻塞
+            word_app.DisplayAlerts = 0
+        except Exception:
+            pass
 
         try:
-            # 检查是否已取消
+            # 检查是否已取消（Quit 统一由 finally 处理）
             if is_cancelled_callback and is_cancelled_callback():
-                word_app.Quit()
                 return False
 
             # 打开DOC文件
@@ -78,7 +82,6 @@ def convert_doc_to_docx(input_path, output_folder, log_callback=None, is_cancell
             # 检查是否已取消
             if is_cancelled_callback and is_cancelled_callback():
                 doc.Close()
-                word_app.Quit()
                 return False
 
             # 生成输出文件名
@@ -104,7 +107,7 @@ def convert_doc_to_docx(input_path, output_folder, log_callback=None, is_cancell
             # 确保应用程序被关闭
             try:
                 word_app.Quit()
-            except:
+            except Exception:
                 pass
 
     except Exception as e:
@@ -143,10 +146,20 @@ class DocxTraditionalSimplifiedConverter:
             return self.cc.convert(text)
         return text
 
-    def _convert_footnotes_using_zip_manipulation(self, input_path, output_path):
+    # <w:t> 文本标签（含带属性形式）；DOTALL 使含换行的文本也能匹配
+    _WT_TEXT_RE = re.compile(r'(<w:t(?:\s[^>]*)?>)(.*?)(</w:t>)', re.DOTALL)
+    # 文本框内容块（AlternateContent 的 Choice 与 Fallback 中会重复出现，转换幂等）
+    _TXBX_RE = re.compile(r'(<w:txbxContent(?:\s[^>]*)?>)(.*?)(</w:txbxContent>)', re.DOTALL)
+
+    def _convert_aux_content_via_zip(self, input_path, output_path):
         """
-        通过直接操作docx文件（zip格式）来转换脚注和尾注
-        这是最可靠的方法，因为它直接修改XML文件
+        通过直接操作docx文件（zip格式）转换 python-docx 阶段覆盖不到的内容：
+
+        - 文本框（w:txbxContent）内的文字：始终转换
+        - 脚注/尾注（footnotes.xml / endnotes.xml）：按 convert_footnotes 设置
+        - 批注（comments.xml）：不转换
+
+        直接修改XML而不做解析-重写，完全保留原始 XML 结构。
         """
         try:
             # 检查是否已取消
@@ -168,22 +181,41 @@ class DocxTraditionalSimplifiedConverter:
                     return False
 
                 # 转换脚注XML文件
-                footnotes_path = os.path.join(temp_dir, 'word', 'footnotes.xml')
-                if os.path.exists(footnotes_path):
-                    self._convert_xml_file(footnotes_path)
-                    self.log("已转换脚注内容")
+                if self.convert_footnotes:
+                    footnotes_path = os.path.join(temp_dir, 'word', 'footnotes.xml')
+                    if os.path.exists(footnotes_path):
+                        self._convert_xml_file(footnotes_path)
+                        self.log("已转换脚注内容")
+                    else:
+                        self.log("文档中没有脚注")
+
+                    # 检查是否已取消
+                    if self.is_cancelled_callback and self.is_cancelled_callback():
+                        return False
+
+                    # 转换尾注XML文件（如果有）
+                    endnotes_path = os.path.join(temp_dir, 'word', 'endnotes.xml')
+                    if os.path.exists(endnotes_path):
+                        self._convert_xml_file(endnotes_path)
+                        self.log("已转换尾注内容")
                 else:
-                    self.log("文档中没有脚注")
+                    self.log("跳过脚注和尾注转换")
 
-                # 检查是否已取消
-                if self.is_cancelled_callback and self.is_cancelled_callback():
-                    return False
-
-                # 转换尾注XML文件（如果有）
-                endnotes_path = os.path.join(temp_dir, 'word', 'endnotes.xml')
-                if os.path.exists(endnotes_path):
-                    self._convert_xml_file(endnotes_path)
-                    self.log("已转换尾注内容")
+                # 转换文本框内容（正文/页眉/页脚/脚注/尾注中的 w:txbxContent）
+                word_dir = os.path.join(temp_dir, 'word')
+                if os.path.isdir(word_dir):
+                    txbx_files = [
+                        f for f in os.listdir(word_dir)
+                        if f == 'document.xml'
+                        or f.startswith(('header', 'footer'))
+                        or f in ('footnotes.xml', 'endnotes.xml')
+                    ]
+                    txbx_count = sum(
+                        1 for f in sorted(txbx_files)
+                        if self._convert_textboxes_in_xml(os.path.join(word_dir, f))
+                    )
+                    if txbx_count:
+                        self.log(f"已转换 {txbx_count} 个部件中的文本框内容")
 
                 # 检查是否已取消
                 if self.is_cancelled_callback and self.is_cancelled_callback():
@@ -201,12 +233,59 @@ class DocxTraditionalSimplifiedConverter:
                 return True
 
         except Exception as e:
-            self.log(f"通过zip操作转换脚注时出错: {e}")
+            self.log(f"zip级内容转换出错: {e}")
+            return False
+
+    def _convert_wt_text(self, match):
+        """re.sub 回调：转换单个 <w:t> 标签内的文本。"""
+        text = match.group(2)
+        # 只在文本包含中文字符时转换，避免无意义的 OpenCC 调用
+        if text and any('\u4e00' <= c <= '\u9fff' or '\u3400' <= c <= '\u4dbf' for c in text):
+            return match.group(1) + self.convert_text(text) + match.group(3)
+        return match.group(0)
+
+    def _convert_textboxes_in_xml(self, xml_path) -> bool:
+        """
+        转换单个 XML 部件中所有文本框（w:txbxContent）内的 <w:t> 文字。
+
+        刻意只处理文本框：正文文字留给 python-docx 阶段按 run 边界
+        转换以保留格式。返回该部件是否存在文本框内容。
+        """
+        try:
+            # 检查是否已取消
+            if self.is_cancelled_callback and self.is_cancelled_callback():
+                return False
+
+            with open(xml_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+
+            if '<w:txbxContent' not in content:
+                return False
+
+            def convert_txbx(match):
+                return (
+                    match.group(1)
+                    + self._WT_TEXT_RE.sub(self._convert_wt_text, match.group(2))
+                    + match.group(3)
+                )
+
+            converted_content = self._TXBX_RE.sub(convert_txbx, content)
+
+            # 检查是否已取消
+            if self.is_cancelled_callback and self.is_cancelled_callback():
+                return False
+
+            with open(xml_path, 'w', encoding='utf-8') as f:
+                f.write(converted_content)
+            return True
+
+        except Exception as e:
+            self.log(f"转换文本框内容 {xml_path} 时出错: {e}")
             return False
 
     def _convert_xml_file(self, xml_path):
         """
-        转换XML文件（footnotes.xml / endnotes.xml）中的文本内容。
+        转换XML文件（footnotes.xml / endnotes.xml）中的全部 <w:t> 文本内容。
 
         采用精准正则匹配 <w:t> 标签内文本的方式，仅替换文字内容，
         不对 XML 做解析-重写操作，从而完全保留原始 XML 结构（命名空间声明、
@@ -225,19 +304,7 @@ class DocxTraditionalSimplifiedConverter:
             if self.is_cancelled_callback and self.is_cancelled_callback():
                 return
 
-            # 精准匹配 <w:t>...</w:t> 标签（含带属性的情况如 <w:t xml:space="preserve">）
-            def convert_wt_text(match):
-                opening_tag = match.group(1)
-                text = match.group(2)
-                closing_tag = match.group(3)
-
-                # 只在文本包含中文字符时转换，避免无意义的 OpenCC 调用
-                if text and any('\u4e00' <= c <= '\u9fff' for c in text):
-                    return opening_tag + self.convert_text(text) + closing_tag
-                return match.group(0)
-
-            pattern = r'(<w:t(?:\s[^>]*)?>)(.*?)(</w:t>)'
-            converted_content = re.sub(pattern, convert_wt_text, content)
+            converted_content = self._WT_TEXT_RE.sub(self._convert_wt_text, content)
 
             # 检查是否已取消
             if self.is_cancelled_callback and self.is_cancelled_callback():
@@ -263,25 +330,22 @@ class DocxTraditionalSimplifiedConverter:
 
         self.log(f"开始转换文档: {input_path}")
 
-        # 首先处理脚注和尾注（通过zip操作）- 根据设置决定是否执行
-        if self.convert_footnotes:
-            temp_output = output_path + ".temp.docx"
-            footnote_success = self._convert_footnotes_using_zip_manipulation(input_path, temp_output)
+        # zip 级预处理：文本框（始终）与脚注/尾注（按设置）
+        temp_output = output_path + ".temp.docx"
+        pre_success = self._convert_aux_content_via_zip(input_path, temp_output)
 
-            # 检查是否已取消
-            if self.is_cancelled_callback and self.is_cancelled_callback():
-                return None
+        # 检查是否已取消
+        if self.is_cancelled_callback and self.is_cancelled_callback():
+            if temp_output and os.path.exists(temp_output):
+                os.remove(temp_output)
+            return None
 
-            if footnote_success:
-                # 如果脚注转换成功，使用temp文件继续处理其他内容
-                processing_file = temp_output
-            else:
-                # 如果脚注转换失败，使用原始文件
-                self.log("脚注转换失败，将只转换正文内容")
-                processing_file = input_path
-                temp_output = None
+        if pre_success:
+            # 预处理成功，使用temp文件继续处理正文
+            processing_file = temp_output
         else:
-            self.log("跳过脚注和尾注转换")
+            # 预处理失败，使用原始文件
+            self.log("预处理失败，将只转换正文内容")
             processing_file = input_path
             temp_output = None
 
@@ -351,6 +415,9 @@ class DocxTraditionalSimplifiedConverter:
 
         except Exception as e:
             self.log(f"处理文档时出错: {e}")
+            if temp_output and os.path.exists(temp_output):
+                os.remove(temp_output)
+            return None
 
     def _convert_paragraphs(self, paragraphs):
         """转换段落集合"""

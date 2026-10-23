@@ -1,11 +1,12 @@
 import os
 import posixpath
+import re
 import zipfile
 import xml.etree.ElementTree as ET
 from urllib.parse import unquote
 from typing import Callable, Dict, Optional, Set, Tuple, Union
 from opencc import OpenCC
-from bs4 import BeautifulSoup, NavigableString
+from bs4 import BeautifulSoup, NavigableString, Tag
 from bs4.formatter import XMLFormatter
 import chardet
 
@@ -20,32 +21,73 @@ CONTAINER_XML_PATH = 'META-INF/container.xml'
 #: 视为“正文文档”的 OPF manifest media-type（对应 ebooklib.ITEM_DOCUMENT）
 DOCUMENT_MEDIA_TYPES = frozenset({'application/xhtml+xml', 'text/html'})
 
+#: EPUB2 目录文件的 media-type
+NCX_MEDIA_TYPE = 'application/x-dtbncx+xml'
+
 # ---------------------------------------------------------------------------
 # 内部工具
 # ---------------------------------------------------------------------------
 
+#: 递归跳过的标签：其自身及全部子孙内容都不转换
+_SKIP_TAGS = {'script', 'style', 'svg', 'math'}
+
+
 def _convert_dom_text(soup: BeautifulSoup, cc: OpenCC) -> None:
     """
-    递归遍历 BeautifulSoup DOM 树，替换所有纯文本节点。
+    批量转换 DOM 文本节点：收集所有文本 → 直接拼接整体转换 → 按边界切回。
 
-    规则：
-    - 跳过 <script> / <style> 内部的文本
-    - 不处理纯空白节点（保留原空白）
-    - 只处理非空文本节点
+    - 递归跳过 <script> / <style> / <svg> / <math> 子树（包括其子孙元素）
+    - 只处理精确 NavigableString 类型，排除 Comment 等子类
+      （否则注释中的中文会被转换并变成可见文本节点）
+    - 直接拼接（不插分隔符）使跨节点边界（行内标签、span 等）的词不被
+      拆开，对 OpenCC 的词组转换保持完整上下文——分隔符会被 OpenCC
+      分词视为词界，起不到保上下文的作用；空白节点一并拼入（转换不改
+      空白），避免跳过空白反而拼出不存在的词
+    - 长度一致时按原字符位置切回；长度变化时用前缀转换定位各节点边界
+      （与 doc_converter/pdf_converter 的 _split_converted_by_prefix 同方案），
+      词内的字不会被错配到相邻节点
     """
-    # 黑名单标签 —— 其内部文本不参与转换
-    SKIP_TAGS = {'script', 'style', 'svg', 'math'}
+    nodes = []          # NavigableString 对象
+    texts = []          # 对应文本内容
 
-    for element in soup.find_all(True):
-        if element.name in SKIP_TAGS:
-            continue
-        for child in list(element.children):
-            if isinstance(child, NavigableString) and child.strip():
-                # 注意：不能直接 child.replace_with(cc.convert(child))，
-                # 因为 child 的类型可能是 NavigableString 的子类 CData 等，
-                # 统一转为普通字符串处理
-                converted = cc.convert(str(child))
-                child.replace_with(NavigableString(converted))
+    def walk(parent) -> None:
+        for child in parent.children:
+            if isinstance(child, Tag):
+                if child.name in _SKIP_TAGS:
+                    continue
+                walk(child)
+            elif type(child) is NavigableString:
+                nodes.append(child)
+                texts.append(str(child))
+
+    walk(soup)
+
+    if not texts:
+        return
+
+    full = ''.join(texts)
+    converted = cc.convert(full)
+
+    if len(converted) == len(full):
+        # 长度一致：按原字符位置切回（绝大多数映射 1:1）
+        pos = 0
+        for node, t in zip(nodes, texts):
+            n = len(t)
+            node.replace_with(NavigableString(converted[pos:pos + n]))
+            pos += n
+        return
+
+    # 长度变化：对每个节点结束位置 p，len(convert(full[:p])) 即该边界在
+    # 译文中的落点（由 OpenCC 自身分词决定）；钳制保证边界单调，不丢字、
+    # 不重复
+    bounds = [0]
+    p = 0
+    for t in texts:
+        p += len(t)
+        q = len(cc.convert(full[:p]))
+        bounds.append(min(max(q, bounds[-1]), len(converted)))
+    for node, (s, e) in zip(nodes, zip(bounds, bounds[1:])):
+        node.replace_with(NavigableString(converted[s:e]))
 
 
 def _detect_encoding_from_bytes(raw_data: bytes, log_callback=None):
@@ -164,18 +206,32 @@ def _detect_encoding_from_bytes(raw_data: bytes, log_callback=None):
     return encoding
 
 
+def _decode_bytes(raw: bytes, log_callback: Optional[Callable] = None) -> str:
+    """智能编码检测并解码；检测失败时回退 utf-8 宽松模式。"""
+    detected_enc = _detect_encoding_from_bytes(raw, log_callback=log_callback)
+    try:
+        return raw.decode(detected_enc)
+    except (UnicodeDecodeError, LookupError):
+        return raw.decode('utf-8', errors='replace')
+
+
+def _restore_bom(raw: bytes, converted: bytes) -> bytes:
+    """原内容带 BOM 而转换结果没有时补回 BOM。"""
+    if raw[:3] == b'\xef\xbb\xbf' and converted[:3] != b'\xef\xbb\xbf':
+        return b'\xef\xbb\xbf' + converted
+    return converted
+
+
+def _has_cjk(text: str) -> bool:
+    return any('\u4e00' <= c <= '\u9fff' or '\u3400' <= c <= '\u4dbf' for c in text)
+
+
 def _convert_xhtml_bytes(raw: bytes, cc: OpenCC, log_callback: Optional[Callable]) -> bytes:
     """
     转换单个 XHTML 文档的原始字节。
-    编码检测 → BeautifulSoup 解析 → 文本节点转换 → 序列化回字节。
+    编码检测 → BeautifulSoup 解析 → 文本节点批量转换 → 序列化回字节。
     """
-    # 使用智能编码检测（与 detect_encoding 共用核心逻辑）
-    detected_enc = _detect_encoding_from_bytes(raw, log_callback=log_callback)
-    try:
-        content = raw.decode(detected_enc)
-    except (UnicodeDecodeError, LookupError):
-        # 检测到的编码解码失败，回退到 utf-8 宽松模式
-        content = raw.decode('utf-8', errors='replace')
+    content = _decode_bytes(raw, log_callback=log_callback)
 
     try:
         soup = BeautifulSoup(content, 'xml')  # EPUB XHTML 是 XML 序列化
@@ -185,12 +241,28 @@ def _convert_xhtml_bytes(raw: bytes, cc: OpenCC, log_callback: Optional[Callable
 
     # bs4 序列化为字节，保留 XML 声明
     converted_bytes = soup.encode('utf-8', formatter=XMLFormatter())
+    return _restore_bom(raw, converted_bytes)
 
-    # 如果原始内容有 BOM 且转换后没了，补上
-    if raw[:3] == b'\xef\xbb\xbf' and converted_bytes[:3] != b'\xef\xbb\xbf':
-        converted_bytes = b'\xef\xbb\xbf' + converted_bytes
 
-    return converted_bytes
+# 只转换目录条目标签（navLabel/text）；docTitle 等 NCX 元数据不转换
+_NCXML_LABEL_RE = re.compile(
+    r'(<navLabel>\s*<text(?:\s[^>]*)?>)(.*?)(</text>)', re.DOTALL
+)
+
+
+def _convert_ncx_bytes(raw: bytes, cc: OpenCC,
+                       log_callback: Optional[Callable] = None) -> bytes:
+    """转换单个 NCX（toc.ncx）中的目录条目文字；元数据保持原样。"""
+    content = _decode_bytes(raw, log_callback=log_callback)
+
+    def repl(match) -> str:
+        label = match.group(2)
+        if _has_cjk(label):
+            return match.group(1) + cc.convert(label) + match.group(3)
+        return match.group(0)
+
+    converted = _NCXML_LABEL_RE.sub(repl, content)
+    return _restore_bom(raw, converted.encode('utf-8'))
 
 
 # ---------------------------------------------------------------------------
@@ -202,16 +274,19 @@ def _local_name(tag: str) -> str:
     return tag.rsplit('}', 1)[-1]
 
 
-def _get_document_paths(zf: zipfile.ZipFile, log: Callable[[str], None]) -> Tuple[Set[str], bool]:
+def _get_document_paths(
+    zf: zipfile.ZipFile, log: Callable[[str], None]
+) -> Tuple[Set[str], Set[str], bool]:
     """
     解析 container.xml → OPF manifest，找出需要转换的 XHTML 文档
-    在 ZIP 内的完整路径集合。
+    与 NCX 目录文件在 ZIP 内的完整路径集合。
 
-    返回 (路径集合, 是否依据 OPF 解析成功)。
+    返回 (文档路径集合, NCX 路径集合, 是否依据 OPF 解析成功)。
     当 container.xml / OPF 缺失或解析失败时，回退为按扩展名识别。
     """
     names = set(zf.namelist())
     doc_paths: Set[str] = set()
+    ncx_paths: Set[str] = set()
 
     # --- container.xml 定位 OPF ---
     opf_path = None
@@ -242,25 +317,30 @@ def _get_document_paths(zf: zipfile.ZipFile, log: Callable[[str], None]) -> Tupl
                     continue
                 media_type = (elem.get('media-type') or '').strip().lower()
                 href = elem.get('href')
-                if not href or media_type not in DOCUMENT_MEDIA_TYPES:
+                is_doc = media_type in DOCUMENT_MEDIA_TYPES
+                is_ncx = media_type == NCX_MEDIA_TYPE or (
+                    href or '').lower().split('#')[0].endswith('.ncx')
+                if not href or not (is_doc or is_ncx):
                     continue
                 # manifest href 是相对 OPF 的（可能 URL 编码的）路径
                 rel = unquote(href.split('#', 1)[0])
                 full = posixpath.normpath(posixpath.join(opf_dir, rel)) if opf_dir else posixpath.normpath(rel)
+                target = doc_paths if is_doc else ncx_paths
                 if full in names:
-                    doc_paths.add(full)
+                    target.add(full)
                 elif full.lower() in lower_map:
-                    doc_paths.add(lower_map[full.lower()])
+                    target.add(lower_map[full.lower()])
     elif opf_path:
         log(f"警告：OPF 文件不存在于包内 - {opf_path}")
 
     if doc_paths:
-        return doc_paths, True
+        return doc_paths, ncx_paths, True
 
-    # 兜底：无法从 OPF 解析时，按扩展名识别 XHTML 文档
+    # 兜底：无法从 OPF 解析时，按扩展名识别 XHTML 文档与 NCX 目录
     log("警告：OPF 清单中未找到 XHTML 文档项，将按扩展名识别")
     doc_paths = {n for n in names if n.lower().endswith(('.xhtml', '.html', '.htm'))}
-    return doc_paths, False
+    ncx_paths = {n for n in names if n.lower().endswith('.ncx')}
+    return doc_paths, ncx_paths, False
 
 
 def _write_epub(zin: zipfile.ZipFile, output_path: str, converted: Dict[str, bytes]) -> None:
@@ -381,20 +461,23 @@ def convert_epub_file(
         if is_cancelled_callback and is_cancelled_callback():
             return False
 
-        # --- 解析 OPF，定位 XHTML 文档项 ---
-        doc_paths, from_opf = _get_document_paths(zin, log)
-        total_items = len(doc_paths)
+        # --- 解析 OPF，定位 XHTML 文档项与 NCX 目录 ---
+        doc_paths, ncx_paths, from_opf = _get_document_paths(zin, log)
+        all_targets = doc_paths | ncx_paths
+        total_items = len(all_targets)
         if from_opf:
-            log(f"检测到 {total_items} 个文档项（正文 / 导航）")
+            log(f"检测到 {len(doc_paths)} 个文档项"
+                + (f"、{len(ncx_paths)} 个目录文件" if ncx_paths else ""))
         else:
-            log(f"按扩展名识别到 {total_items} 个文档项")
+            log(f"按扩展名识别到 {len(doc_paths)} 个文档项"
+                + (f"、{len(ncx_paths)} 个目录文件" if ncx_paths else ""))
 
         # --- 遍历并转换内容项 ---
         doc_count = 0
         converted: Dict[str, bytes] = {}
 
         for info in zin.infolist():
-            if info.filename not in doc_paths:
+            if info.filename not in all_targets:
                 continue
 
             if is_cancelled_callback and is_cancelled_callback():
@@ -405,7 +488,10 @@ def convert_epub_file(
             log(f"  [{doc_count}/{total_items}] 转换文档: {file_name}")
             try:
                 raw = zin.read(info.filename)
-                converted[file_name] = _convert_xhtml_bytes(raw, cc, log_callback)
+                if info.filename in ncx_paths:
+                    converted[file_name] = _convert_ncx_bytes(raw, cc, log_callback)
+                else:
+                    converted[file_name] = _convert_xhtml_bytes(raw, cc, log_callback)
             except Exception as e:
                 log(f"  ⚠ 处理 {file_name} 时出错: {e}，已跳过该文件")
                 continue

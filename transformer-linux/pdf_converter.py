@@ -727,8 +727,10 @@ def _char_runs_from_page(doc: PdfDocument, page_index: int,
         if r['rot']:
             rotated_runs += 1
             # 逆时针侧排（90°）与倒排（180°）文本的阅读方向与扫描序相反，
-            # 反转后 text 与 xs/ys 仍逐字配对，转换也能拿到正序上下文
-            if r['rot'] in (90.0, 180.0):
+            # 反转后 text 与 xs/ys 仍逐字配对，转换也能拿到正序上下文。
+            # 角度用区间而非精确相等判断：rotation_degrees 有微小抖动
+            # （如 89.90001678），精确比较会漏反转
+            if 85.0 <= r['rot'] <= 95.0 or 175.0 <= r['rot'] <= 185.0:
                 r['text'] = r['text'][::-1]
                 r['xs'].reverse()
                 r['ys'].reverse()
@@ -1476,13 +1478,12 @@ def convert_pdf_file(
             return False
 
         # --- 预检文本层：全部为扫描页时无法转换 ---
-        text_pages = sum(1 for i in range(total_pages) if doc.has_text_layer(i))
-        if text_pages == 0:
+        # any() 找到首个文本页即短路，正常文档只探测第 1 页；
+        # 扫描页的确切数量改由主循环统计（那里本来就逐页判断）
+        if not any(doc.has_text_layer(i) for i in range(total_pages)):
             log("错误：该 PDF 没有可提取的文本层（可能是扫描或纯图片 PDF），无法进行文字转换")
             log("提示：如需转换扫描件，请先使用 OCR 工具识别文字后再尝试")
             return False
-        if text_pages < total_pages:
-            log(f"警告：{total_pages - text_pages}/{total_pages} 页没有文本层（扫描页），这些页面将按原样栅格化保留")
 
         # --- 初始化输出文档 ---
         builder = DocumentBuilder().title(f"convert_{os.path.splitext(os.path.basename(input_path))[0]}")
@@ -1512,6 +1513,7 @@ def convert_pdf_file(
         converted_spans = 0
         highlighted_chars = 0
         vertical_pages = 0
+        scanned_pages = 0
 
         for page_index in range(total_pages):
             if is_cancelled_callback and is_cancelled_callback():
@@ -1557,6 +1559,8 @@ def convert_pdf_file(
 
             # --- 无文本层的扫描页：整页栅格化保留 ---
             if not doc.has_text_layer(page_index):
+                scanned_pages += 1
+                log(f"  ℹ 第{page_index + 1}页无文本层（扫描页），按原样栅格化保留")
                 png = _rasterize_page_png(doc, page_index)
                 if png:
                     page_builder.image_with_alt(png, 0.0, 0.0, out_w, out_h, "")
@@ -1653,12 +1657,20 @@ def convert_pdf_file(
             builder.save(output_path)
         except Exception as e:
             log(f"错误：写出 PDF 文件失败 - {e}")
+            # 清理写盘失败留下的半成品，避免用户误用不完整文件
+            try:
+                if os.path.exists(output_path):
+                    os.remove(output_path)
+            except OSError:
+                pass
             return False
 
         log(f"已保存: {output_path}")
         summary = f"PDF 转换完成：共 {total_pages} 页，转换 {converted_spans} 个文本片段"
         if vertical_pages:
             summary += f"（其中 {vertical_pages} 页为竖排版面，已按“列从右到左、列内自上而下”顺序转换）"
+        if scanned_pages:
+            summary += f"，{scanned_pages} 页扫描页按原样栅格化保留"
         if highlight_changes:
             summary += f"，高亮 {highlighted_chars} 个修改字"
         log(summary)
