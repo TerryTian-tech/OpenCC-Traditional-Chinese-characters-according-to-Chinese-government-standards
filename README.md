@@ -26,7 +26,7 @@ OpenCC开放中文转换 - 将混杂不同标准的繁体字形转换为《通�
 > [!NOTE]
 >本仓库的[Releases](https://github.com/TerryTian-tech/OpenCC-Traditional-Chinese-characters-according-to-Chinese-government-standards/releases)下已提供“规范繁体字形转换器”的安装包，支持Win10/Win11/Win7。Deepin/GXDE已提供deb格式安装包。您可以直接下载安装，如果你需要了解细节，再阅读以下使用说明。
 
-### 1.转换方案及配置文件说明
+### 1. 转换方案及配置文件说明
 OpenCC转换的配置文件存于本仓库的“t2gov”文件夹下，使用者应自行拷贝到OpenCC的方案文件夹中，具体可参照OpenCC的说明文档。基于使用者可以进行自定义/编辑转换字表、词典的考虑，“t2gov”下的字表、词典均为txt格式，并未转换为ocd2格式。使用者可以调用OpenCC自行转换为ocd2，转换后应相应编辑json文件令其使用ocd2。
 
 本仓库提供了五种转换方案：繁体转换为规范繁体、只转换繁体旧字形到新字形、繁体转换为简体、只将异体字转换为简体、简体转换为规范繁体。目前的所有转换方案都适用于 OpenCC 1.3.2* 及以上版本。
@@ -47,7 +47,7 @@ OpenCC转换的配置文件存于本仓库的“t2gov”文件夹下，使用者
 
 简体转换为规范繁体的方案文件为 `s2t.json` ，字表文件名为 `STCharacters.txt` ，词典文件名为 `STPhrases.txt` 。
 
-### 2.规范繁体转换方案如何应用于小狼毫（Rime）输入法
+### 2. 规范繁体转换方案如何应用于小狼毫（Rime）输入法
 > [!NOTE]
 >以下步骤系演示如何改造小狼毫（Rime）默认搭载的【朙月拼音】输入方案为规范繁体字形输出，使用者可依照类似思路改造其他由社区驱动的输入方案，但不能保证本仓库的转换方案一定适配于其他输入方案。
 
@@ -80,7 +80,7 @@ patch:
 
 第五步：打开“小狼毫”输入法，在“中”字图标上点击鼠标右键，选择“重新部署”即可。
 
-### 3.使用本仓库的规范繁体转换程序
+### 3. 使用本仓库的规范繁体转换程序
 “transformer”文件夹下提供了一套模块化的 Python 转换程序，由 `main.py` 作为程序入口统一调度，内部为 `constants.py`（版本常量）、`updater.py`（在线更新检测）、`text_converter.py`（TXT/SRT/ASS/LRC 转换与编码检测）、`epub_converter.py`（EPUB转换模块）、`pdf_converter.py`（PDF转换模块）和 `doc_converter.py`（Word 文档转换）六个模块*。如果使用者希望从源码自行部署转换程序，可以按以下说明操作。
 
 * AI转换模块作为第三方库引入，不进入主仓库的 Git 历史，亦不受 Apache 2.0 许可证覆盖。可进入 [LLMCC](https://github.com/TerryTian-tech/LLMCC) 仓库查看了解该模块详情。
@@ -147,16 +147,16 @@ python3 main.py
 | 组件 | 版本 | 说明 |
 |-----|------|-----|
 | [OpenCC](https://github.com/BYVoid/OpenCC) | 1.4.2 | 开源中文繁简转换库 |
-| [LLMCC](https://github.com/TerryTian-tech/LLMCC) | 0.2.6 | 「规范繁体字形转换器」AI繁简转换独立模块 |
+| [LLMCC](https://github.com/TerryTian-tech/LLMCC) | 0.2.9 | 「规范繁体字形转换器」AI繁简转换独立模块 |
 | [Python-docx](https://github.com/python-openxml/python-docx) | 1.2.0 | Word 文档处理库 |
 | [Pywin32](https://github.com/mhammond/pywin32) | 312 | Python for Win32 扩展 |
 | [PySide6](https://www.qt.io/qt-for-python) | 6.11.2 | Qt for Python GUI 框架 |
-| [Chardet](https://github.com/chardet/chardet) | 7.6.0 | 字符编码检测库 |
-| [Certifi](https://pypi.org/project/certifi/) | 2026.7.22 | Mozilla 根证书库 |
+| [Chardet](https://github.com/chardet/chardet) | 7.7.0 | 字符编码检测库 |
+| [Certifi](https://pypi.org/project/certifi/) | 2026.10.23 | Mozilla 根证书库 |
 | [Beautifulsoup4](https://pypi.org/project/beautifulsoup4/) | 4.15.0 | HTML和XML文档解析库 |
 | [lxml](https://github.com/lxml/lxml) | 6.1.3 | 大型文档和XML处理库 |
 | [pdf-oxide](https://pypi.org/project/pdf-oxide/) | 0.3.78 | PDF 文件解析与重建库 |
-| [Pillow](https://python-pillow.github.io/) | 12.3.0 | 图像处理库，用于 PDF 扫描页栅格化保留 |
+| [Pillow](https://python-pillow.github.io/) | 13.0.0 | 图像处理库，用于 PDF 扫描页栅格化保留 |
 
 > [!NOTE]
 >Win7版本的第三方库使用情况请参见仓库的 requirements.txt 文件。
