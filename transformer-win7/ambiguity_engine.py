@@ -15,11 +15,21 @@
    个歧义词用“前缀转换定位法”（与 pdf_converter._split_converted_by_prefix
    同一思路）逐个校验，只保留与实际输出对齐的跨度，其余安全跳过并计数。
 
+匹配算法已按 OpenCC 源码逐条核对（E:\\Github\\OpenCC）：
+- src/Conversion.cpp Conversion::AppendConverted——逐位置匹配：取当前起点
+  上“组内按词典优先级短路后的最长键”，命中即替换为该键默认值（词条首值），
+  未命中则单字原样输出；
+- src/PrefixMatch.cpp GroupMatcher::MatchPrefixShortCircuit——组内短路：按
+  词典声明顺序，第一个存在前缀匹配的词典胜出，用该词典自身的最长键；
+- src/Config.cpp + ConfigBasedConverter——normalization 链先于主链对整段文
+  本应用，之后（若有）结巴分词切段，每个词再走主链逐位置匹配；
+- src/ConversionCandidates.cpp GetAllConversions——候选值 = 组内第一个含该
+  键的词典的全部值。
+
 txt 词典格式（与 t2gov/ 目录一致）：
     '#' 注释行；每行“键<TAB>值1 值2 …”，多个候选用空格分隔，首值为默认转换。
 """
 
-import bisect
 import json
 import os
 
@@ -41,15 +51,17 @@ class ConversionCancelled(Exception):
 class _TextDict:
     """一份 txt 词典：键 -> 候选值列表（保持文件顺序，首值为默认转换）。"""
 
-    __slots__ = ("values", "_sorted_keys")
+    __slots__ = ("values", "max_key_len", "first_chars")
 
     def __init__(self):
         self.values = {}
-        self._sorted_keys = None
+        self.max_key_len = 0
+        self.first_chars = frozenset()
 
     @classmethod
     def load(cls, path):
         obj = cls()
+        first_chars = set()
         with open(path, "r", encoding="utf-8") as fh:
             for line in fh:
                 line = line.rstrip("\r\n")
@@ -64,23 +76,24 @@ class _TextDict:
                 merged = obj.values.get(key)
                 if merged is None:
                     obj.values[key] = candidates
+                    if len(key) > obj.max_key_len:
+                        obj.max_key_len = len(key)
+                    first_chars.add(key[0])
                 else:
                     # 同键多行时按出现顺序合并去重，默认值仍取首见者
                     for cand in candidates:
                         if cand not in merged:
                             merged.append(cand)
+        obj.first_chars = frozenset(first_chars)
         return obj
 
-    def _keys(self):
-        if self._sorted_keys is None:
-            self._sorted_keys = sorted(self.values)
-        return self._sorted_keys
-
-    def has_prefix(self, prefix):
-        """是否存在以 prefix 开头的键（复现 OpenCC Seg 的前缀扩展判断）。"""
-        keys = self._keys()
-        i = bisect.bisect_left(keys, prefix)
-        return i < len(keys) and keys[i].startswith(prefix)
+    def longest_prefix(self, text, start):
+        """返回 text[start:] 开头的最长键；无则 None（键长降序试探）。"""
+        for length in range(min(self.max_key_len, len(text) - start), 0, -1):
+            cand = text[start:start + length]
+            if cand in self.values:
+                return cand
+        return None
 
 
 class _DictGroup:
@@ -97,11 +110,19 @@ class _DictGroup:
                 return values
         return None
 
-    def match_prefix(self, prefix):
+    def match_at(self, text, start):
+        """复现 OpenCC 组内短路匹配（PrefixMatch::MatchPrefixShortCircuit）。
+
+        按词典优先级取第一个存在前缀匹配的词典，用该词典自身的最长键。
+        返回 (键, 候选值列表) 或 (None, None)。
+        """
+        ch = text[start]
         for d in self.dicts:
-            if d.has_prefix(prefix):
-                return True
-        return False
+            if ch in d.first_chars:
+                key = d.longest_prefix(text, start)
+                if key is not None:
+                    return key, d.values[key]
+        return None, None
 
 
 class _ConversionConfig:
@@ -313,45 +334,48 @@ def _get_jieba_tokenizer(seg):
     return tok
 
 
-def _tokenize_greedy(text, group, cancel_check):
-    """复现 OpenCC（不分词模式）的贪心前缀扩展切分。
+def _convert_run(text, group, cancel_check=None):
+    """复现 OpenCC Conversion::AppendConverted 的逐位置最长键匹配。
 
-    对 CJK 连续段尽量延伸：只要组内仍存在以当前段为前缀的键就继续吸收字
-    符；停止处的片段作为一个词，按组内优先级查候选值。非 CJK 字符逐字直
-    通（本方案词典键均为 CJK）。产出 [(start, end, values_or_None)]。
+    每个位置取“组内按词典优先级短路后的最长键”：命中则输出该键默认值（条
+    目首值）并跳过整个键，未命中则单字原样输出。产出
+    [(start, end, 输出片段, values_or_None)]，偏移为 code point。
     """
     tokens = []
     i, n = 0, len(text)
     tick = 0
     while i < n:
-        if not _is_cjk(text[i]):
-            tokens.append((i, i + 1, None))
+        key, values = group.match_at(text, i)
+        if key is not None:
+            tokens.append((i, i + len(key), values[0], values))
+            i += len(key)
+        else:
+            tokens.append((i, i + 1, text[i], None))
             i += 1
-            continue
-        j = i + 1
-        while j < n and _is_cjk(text[j]) and group.match_prefix(text[i:j + 1]):
-            j += 1
-        tokens.append((i, j, group.lookup(text[i:j])))
-        i = j
         tick += 1
         if cancel_check is not None and tick % 2048 == 0 and cancel_check():
             raise ConversionCancelled()
     return tokens
 
 
-def _tokenize_jieba(text, group, tokenizer, cancel_check):
-    """结巴分词模式：逐词查组（opencc-py 的 _jieba 配置即由 Python jieba 切分）。"""
-    pos = 0
+def _convert_jieba(text, group, tokenizer, cancel_check):
+    """结巴分词模式：先按 jieba 切词，词内仍走逐位置最长键匹配。
+
+    OpenCC 的 jieba 配置（SingleStageConverter）即如此：分词得到词段后，
+    每个词段经主链 Conversion::AppendConverted 转换——词内无整词键时仍会
+    匹配词内的短键/单字，而不是整词直通。
+    """
     tokens = []
+    pos = 0
     for k, word in enumerate(tokenizer.lcut(text, HMM=True)):
-        end = pos + len(word)
-        tokens.append((pos, end, group.lookup(word) if word else None))
-        pos = end
-        if cancel_check is not None and k % 2048 == 0 and cancel_check():
+        for s, e, out, values in _convert_run(word, group):
+            tokens.append((pos + s, pos + e, out, values))
+        pos += len(word)
+        if cancel_check is not None and k % 512 == 0 and cancel_check():
             raise ConversionCancelled()
     if pos != len(text):
-        # 理论不应发生：切分结果与原文不等长时退化为贪心切分
-        return _tokenize_greedy(text, group, cancel_check)
+        # 理论不应发生：jieba 切分结果与原文不等长时退回整段匹配
+        tokens = _convert_run(text, group, cancel_check)
     return tokens
 
 
@@ -385,23 +409,20 @@ def convert_with_ambiguities(text, config_name, cancel_check=None):
     norm = _apply_normalization(cfg, text)
     tokenizer = _get_jieba_tokenizer(cfg.segmentation)
 
-    # 依次应用链上各组（本方案各配置均为单组），记录最后一组的逐词转换
+    # normalization 先行（ConfigBasedConverter：先归一、后主链），链上各组依
+    # 次应用（ConversionChain）；jieba 模式先分词、词内逐位匹配。本方案各配
+    # 置主链均为单组；多组链在 jieba 模式下 OpenCC 按词段逐级级联（词界两侧
+    # 不跨词匹配），与此处整段级联在多组+jieba 同时出现时才可能不等价。
     current = norm
     stage_input = norm
     out_tokens = []   # [(start, end, 输出片段, values_or_None)]，偏移基于 stage_input
     for group in cfg.groups:
         stage_input = current
         if tokenizer is not None:
-            tokens = _tokenize_jieba(stage_input, group, tokenizer, cancel_check)
+            out_tokens = _convert_jieba(stage_input, group, tokenizer, cancel_check)
         else:
-            tokens = _tokenize_greedy(stage_input, group, cancel_check)
-        pieces = []
-        out_tokens = []
-        for s, e, values in tokens:
-            out = values[0] if values else stage_input[s:e]
-            pieces.append(out)
-            out_tokens.append((s, e, out, values))
-        current = "".join(pieces)
+            out_tokens = _convert_run(stage_input, group, cancel_check)
+        current = "".join(out for _, _, out, _ in out_tokens)
 
     spans = []
     skipped = 0
@@ -456,6 +477,31 @@ def plain_convert(text, config_name):
 # 自检：python ambiguity_engine.py
 # ---------------------------------------------------------------------------
 
+def _find_prefix_trap(cfg):
+    """找一个“长键的前两字不是键、但逐字可转换”的词形，作回归用例。
+
+    正确算法（逐位置最长键匹配）会把这两个字按单字键转换；错误的“前缀延
+    伸后整段查键”会把它们整体直通——两者输出不同，可检验实现与 OpenCC
+    （src/Conversion.cpp）的一致性。
+    """
+    group = cfg.groups[-1]
+    all_keys = set()
+    for d in group.dicts:
+        all_keys.update(d.values)
+    for key in all_keys:
+        if len(key) >= 3:
+            p = key[:2]
+            if p in all_keys or not all(_is_cjk(c) for c in p):
+                continue
+            converted = ""
+            for i in range(2):
+                k, values = group.match_at(p, i)
+                converted += values[0] if values else p[i]
+            if converted != p:
+                return p
+    return None
+
+
 def _self_test():
     samples = [
         ("s2t", "头发干了。干活。干干净净。万一半夜发行新版，复制于后台。"),
@@ -488,6 +534,10 @@ def _self_test():
                 if len(amb_keys) >= 3:
                     break
             text = "今日，" + "，".join(amb_keys) + "，完畢。"
+        trap = _find_prefix_trap(cfg)
+        if trap:
+            text = text + trap + "。"
+            print("[%s] 前缀陷阱用例: %s" % (name, trap))
         result = convert_with_ambiguities(text, name)
         direct = _get_opencc(name).convert(text)
         matched = result["output"] == direct
