@@ -8,7 +8,7 @@ from PySide2.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QMessageBox, QGroupBox, QComboBox, QCheckBox, QLineEdit,
                              QStyleFactory, QTabWidget, QMenu, QShortcut, QAction)
 from PySide2.QtCore import Qt, QThread, Signal, QSettings
-from PySide2.QtGui import QIcon, QColor, QPalette, QKeySequence
+from PySide2.QtGui import QIcon, QColor, QPalette, QKeySequence, QFont
 
 from constants import VERSION
 from updater import UpdateChecker
@@ -1618,6 +1618,9 @@ class ModernUI(QMainWindow):
         layout.addWidget(options_group)
 
         # 中部：左输入、右输出（两侧均为纯文本、自动换行、同一字号，保证显示对齐）
+        panel_font = QFont(self.font())
+        panel_font.setPointSize(11)
+
         panels_layout = QHBoxLayout()
         panels_layout.setSpacing(12)
 
@@ -1627,6 +1630,7 @@ class ModernUI(QMainWindow):
         self.text_input_edit = QTextEdit()
         self.text_input_edit.setAcceptRichText(False)  # 粘贴/拖入一律按纯文本处理
         self.text_input_edit.setLineWrapMode(QTextEdit.WidgetWidth)
+        self.text_input_edit.setFont(panel_font)
         self.text_input_edit.setPlaceholderText("输入文字，按 Ctrl+Enter 或点击“转换”开始…")
         self.text_input_edit.textChanged.connect(self.on_text_input_changed)
         for seq in (QKeySequence("Ctrl+Return"), QKeySequence("Ctrl+Enter")):
@@ -1640,6 +1644,7 @@ class ModernUI(QMainWindow):
         output_layout.setContentsMargins(10, 12, 10, 10)
         self.text_output_edit = AmbiguityOutputEdit()
         self.text_output_edit.setLineWrapMode(QTextEdit.WidgetWidth)
+        self.text_output_edit.setFont(panel_font)
         self.text_output_edit.setPlaceholderText("转换结果显示在这里")
         self.text_output_edit.ambiguity_clicked.connect(self.show_candidate_menu)
         output_layout.addWidget(self.text_output_edit)
@@ -1663,7 +1668,7 @@ class ModernUI(QMainWindow):
 
         bottom_layout.addStretch()
 
-        self.text_status_label = QLabel("输入文字后点击“转换”；分词模式与“设置”页一致")
+        self.text_status_label = QLabel("输入文字后点击“转换”；分词模式与“设置”页一致。")
         self.text_status_label.setWordWrap(True)
         bottom_layout.addWidget(self.text_status_label, 1)
 
