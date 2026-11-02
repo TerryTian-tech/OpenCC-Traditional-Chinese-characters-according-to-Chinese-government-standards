@@ -7,7 +7,6 @@ from urllib.parse import unquote
 from typing import Callable, Dict, Optional, Set, Tuple, Union
 from opencc import OpenCC
 from bs4 import BeautifulSoup, NavigableString, Tag
-from bs4.formatter import XMLFormatter
 import chardet
 
 # ---------------------------------------------------------------------------
@@ -239,8 +238,12 @@ def _convert_xhtml_bytes(raw: bytes, cc: OpenCC, log_callback: Optional[Callable
         soup = BeautifulSoup(content, 'html.parser')  # 容错：非良构 XML 时回退到 HTML 解析器
     _convert_dom_text(soup, cc)
 
-    # bs4 序列化为字节，保留 XML 声明
-    converted_bytes = soup.encode('utf-8', formatter=XMLFormatter())
+    # bs4 序列化为字节，保留 XML 声明。
+    # 必须用注册表中的 'minimal' 格式化器：它带 substitute_xml，会把文本节点里的
+    # < > & 转义回 &lt; &gt; &amp;。直接构造 XMLFormatter() 时 entity_substitution
+    # 为 None、不做任何转义，原文中 &lt;注：…&gt; 这类随文注会变成裸露的 <注：…，
+    # 使 XHTML 不再良构，WPS 等阅读器解析失败、无法分页
+    converted_bytes = soup.encode('utf-8', formatter='minimal')
     return _restore_bom(raw, converted_bytes)
 
 
