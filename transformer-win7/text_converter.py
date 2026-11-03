@@ -304,37 +304,79 @@ def convert_srt_file(input_path, output_folder, conversion_type, log_callback=No
         return False
 
 
+def _convert_text_segments(cc, segments):
+    """
+    将一组相邻文本段拼接后整体转换，再按段边界切回。
+
+    字幕行内的样式标签（{\\k20}、<01> 等）会把一个词切开，逐段转换
+    会让词首/词尾的字失去上下文（如"乾""隆"分属两段时"乾"被单字
+    映射转错）。标签两侧的文本本属同一行语境，直接拼接（不插分隔符
+    ——分隔符会被 OpenCC 分词视为词界，起不到保上下文的作用）。
+
+    长度一致（繁简映射绝大多数 1:1）时按原字符偏移切回；长度变化时
+    用前缀转换定位各段边界（与 doc_converter/pdf_converter/epub_converter
+    的同方案），词内的字不会被错配到相邻段。
+
+    :param cc: OpenCC转换器实例
+    :param segments: 相邻文本段列表
+    :return: 转换后的文本段列表（与 segments 等长）
+    """
+    full = ''.join(segments)
+    converted = cc.convert(full)
+
+    if len(converted) == len(full):
+        out = []
+        pos = 0
+        for seg in segments:
+            out.append(converted[pos:pos + len(seg)])
+            pos += len(seg)
+        return out
+
+    bounds = [0]
+    p = 0
+    for seg in segments:
+        p += len(seg)
+        q = len(cc.convert(full[:p]))
+        bounds.append(min(max(q, bounds[-1]), len(converted)))
+    return [converted[bounds[i]:bounds[i + 1]] for i in range(len(segments))]
+
+
 def _convert_srt_text_with_tags(cc, text):
     """
     转换SRT字幕文本，但保留ASS/SSA样式标签内的内容不变
     ASS/SSA样式标签格式: {\tag1 value1\tag2 value2...}
     例如: {\fn微软雅黑\fs13\fscx130\fscy130\3c&HFF8000&}字幕文本{\r}
 
+    标签之间的文本段先拼接整体转换再按段切回：卡拉OK逐字标签
+    （{\\k20}乾{\\k20}隆）常把一个词切进相邻段，逐段独立转换会丢失
+    词上下文，见 _convert_text_segments。
+
     :param cc: OpenCC转换器实例
     :param text: 原始字幕文本
     :return: 转换后的字幕文本
     """
-    # 查找所有样式标签 {...}
-    result = []
-    last_end = 0
-
     # 使用正则表达式匹配 {...} 样式标签
     pattern = re.compile(r'\{[^}]*\}')
 
+    # 收集标签之间的纯文本段与标签本身（保持顺序）
+    segments = []
+    tags = []
+    last_end = 0
     for match in pattern.finditer(text):
-        # 转换标签之前的普通文本
-        plain_text = text[last_end:match.start()]
-        if plain_text:
-            result.append(cc.convert(plain_text))
-
-        # 保留样式标签内容不变
-        result.append(match.group())
+        segments.append(text[last_end:match.start()])
+        tags.append(match.group())
         last_end = match.end()
+    segments.append(text[last_end:])
 
-    # 转换最后一个标签之后的普通文本
-    remaining_text = text[last_end:]
-    if remaining_text:
-        result.append(cc.convert(remaining_text))
+    # 拼接整体转换后按段切回
+    converted = _convert_text_segments(cc, segments)
+
+    # 重建：文本段0 标签0 文本段1 标签1 ... 文本段N
+    result = []
+    for i, tag in enumerate(tags):
+        result.append(converted[i])
+        result.append(tag)
+    result.append(converted[len(tags)])
 
     return ''.join(result)
 
@@ -637,6 +679,10 @@ def _convert_lrc_lyric_text(cc, text):
     增强型LRC格式: <01>歌<02>词<03>文<04>字
     每个字前面可能有时间标签，用于精确到字的时间同步
 
+    标签之间的文本段先拼接整体转换再按段切回：增强格式的逐字标签
+    （<01>乾<02>隆）必然把词切进相邻段，逐段独立转换会丢失词上下文，
+    见 _convert_text_segments。
+
     :param cc: OpenCC转换器实例
     :param text: 原始歌词文本
     :return: 转换后的歌词文本
@@ -644,26 +690,28 @@ def _convert_lrc_lyric_text(cc, text):
     if not text:
         return text
 
-    result = []
-    last_end = 0
-
     # 匹配增强型时间标签 <数字>
     pattern = re.compile(r'<\d+>')
 
+    # 收集标签之间的纯文本段与标签本身（保持顺序）
+    segments = []
+    tags = []
+    last_end = 0
     for match in pattern.finditer(text):
-        # 转换标签之前的歌词文本
-        plain_text = text[last_end:match.start()]
-        if plain_text:
-            result.append(cc.convert(plain_text))
-
-        # 保留增强型时间标签
-        result.append(match.group())
+        segments.append(text[last_end:match.start()])
+        tags.append(match.group())
         last_end = match.end()
+    segments.append(text[last_end:])
 
-    # 转换最后一个标签之后的歌词文本
-    remaining_text = text[last_end:]
-    if remaining_text:
-        result.append(cc.convert(remaining_text))
+    # 拼接整体转换后按段切回
+    converted = _convert_text_segments(cc, segments)
+
+    # 重建：文本段0 标签0 文本段1 标签1 ... 文本段N
+    result = []
+    for i, tag in enumerate(tags):
+        result.append(converted[i])
+        result.append(tag)
+    result.append(converted[len(tags)])
 
     return ''.join(result)
 
@@ -720,14 +768,10 @@ def convert_txt_file(input_path, output_folder, conversion_type, log_callback=No
         if is_cancelled_callback and is_cancelled_callback():
             return False
 
-        # 繁简转换：按自然行分批转换，避免将整个文件作为单行传入导致管道阻塞
-        lines = content.split('\n')
-        converted_lines = []
-        for line in lines:
-            if is_cancelled_callback and is_cancelled_callback():
-                return False
-            converted_lines.append(cc.convert(line))
-        converted_content = '\n'.join(converted_lines)
+        # 繁简转换：全文一次转换，与主版实现保持一致（OpenCC 不跨换行
+        # 分词，逐行转换与全文转换结果等价；原逐行写法是为规避管道
+        # 阻塞，opencc-py 为进程内实现并无此问题）
+        converted_content = cc.convert(content)
 
         # 检查是否已取消
         if is_cancelled_callback and is_cancelled_callback():

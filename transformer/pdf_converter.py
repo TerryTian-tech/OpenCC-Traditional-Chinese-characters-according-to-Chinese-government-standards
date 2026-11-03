@@ -813,9 +813,23 @@ def _spans_contiguity(spans: list) -> List[bool]:
     return flags
 
 
+# 跨页衔接上下文的字符数：足够覆盖 OpenCC 词典的最长短语即可
+_BRIDGE_CONTEXT_CHARS = 16
+
+
+def _safe_page_rotation(doc: "PdfDocument", page_index: int) -> int:
+    """读取页面旋转角（归一到 [0, 360)），读取失败按未旋转处理"""
+    try:
+        return int(doc.page_rotation(page_index) or 0) % 360
+    except Exception:
+        return 0
+
+
 def _convert_page_texts(cc, texts: List[str],
                         page_no: int, log: Callable[[str], None],
-                        contiguous: Optional[List[bool]] = None) -> List[str]:
+                        contiguous: Optional[List[bool]] = None,
+                        prefix_context: Optional[str] = None,
+                        suffix_context: Optional[str] = None) -> List[str]:
     """
     将一页的绘制单元文本按版面连续性拼成若干段整体转换，再按位置索引切回
     各单元（移植自 doc_converter 的段落级上下文方案）。
@@ -833,12 +847,20 @@ def _convert_page_texts(cc, texts: List[str],
     - 长度不一致（罕见，如 s2twp 的“内存”→“記憶體”）：用前缀转换定位
       各单元边界在译文中的落点后切割，长度变化的单元自动落入整段重排
       路径，其余单元仍走逐字定位。
+
+    prefix_context / suffix_context 为跨页衔接上下文（上一页末单元尾部 /
+    下一页首单元开头的少量文字，启用条件见 convert_pdf_file 主循环）：
+    直接拼在全文首尾一起转换，但不计入任何单元的偏移——跨界词由 OpenCC
+    整体消歧后，页界两侧的单元按偏移各自拿到正确的字；前缀定位路径的
+    偏移同样已含上下文长度，公式不变。
     """
     if not texts:
         return []
     parts: List[str] = []
     positions = []
-    offset = 0
+    offset = len(prefix_context) if prefix_context else 0
+    if prefix_context:
+        parts.append(prefix_context)
     for i, t in enumerate(texts):
         if i and not (contiguous and contiguous[i]):
             parts.append('\n')
@@ -846,21 +868,29 @@ def _convert_page_texts(cc, texts: List[str],
         positions.append((offset, offset + len(t)))
         offset += len(t)
         parts.append(t)
+    if suffix_context:
+        parts.append(suffix_context)
     full = ''.join(parts)
     converted = cc.convert(full)
     if len(converted) == len(full):
         return [converted[s:e] for (s, e) in positions]
     log(f"  ⚠ 第{page_no}页转换后字符数变化（{len(full)}→{len(converted)}），按前缀转换定位单元边界")
-    return _split_converted_by_prefix(cc, full, positions, converted)
+    return _split_converted_by_prefix(
+        cc, full, positions, converted,
+        len(cc.convert(prefix_context)) if prefix_context else 0)
 
 
 def _split_converted_by_prefix(cc, full: str, positions: List[Tuple[int, int]],
-                               converted: str) -> List[str]:
+                               converted: str, start: int = 0) -> List[str]:
     """
     转换改变字符数时，用“前缀转换”确定各单元边界在译文中的落点：
     对每个单元结束位置 p，len(convert(full[:p])) 即该边界的译文位置——
     由 OpenCC 自身的分词决定，词内的字不会被错配到相邻单元（draw 时
     错配意味着字符画到别的单元位置上）。
+
+    start 为转换文本中不属于任何单元的前置上下文（跨页衔接 prefix）的
+    译文长度，作为首个边界的起点——prefix 的独立转换长度与拼接后的
+    实际落点可能因跨界词略有偏移，由钳制兜底（不丢字、不重复）。
 
     开销为 O(单元数 × 全文长)，但只有转换改变字符数的页面才会走到这里
     （繁简映射绝大多数 1:1，常用配置整本书都不会触发），实际页面在
@@ -869,7 +899,7 @@ def _split_converted_by_prefix(cc, full: str, positions: List[Tuple[int, int]],
     保证边界单调递增，最坏退化为按邻近边界对齐——不丢字、不重复。
     （与 doc_converter._convert_paragraph_fallback 同一方案。）
     """
-    bounds = [0]
+    bounds = [min(max(start, 0), len(converted))]
     for _s, e in positions:
         q = len(cc.convert(full[:e]))
         bounds.append(min(max(q, bounds[-1]), len(converted)))
@@ -1515,6 +1545,14 @@ def convert_pdf_file(
         vertical_pages = 0
         scanned_pages = 0
 
+        # 跨页衔接状态：next_runs_cache 缓存下一页的字符单元（预提取一次，
+        # 正式处理时复用，避免为取下一页首行而重复提取）；prev_bridge 记录
+        # 上一页末单元的（尾部文本, 字号）——页界两侧各自转换会让恰好跨页
+        # 的词失去上下文（“乾隆”分属两页时“乾”被单字映射转错），衔接时
+        # 把它拼进相邻页的转换文本一起消歧
+        next_runs_cache: dict = {}
+        prev_bridge = None  # (tail_text, size) 或 None
+
         for page_index in range(total_pages):
             if is_cancelled_callback and is_cancelled_callback():
                 log("转换已被取消")
@@ -1545,10 +1583,7 @@ def convert_pdf_file(
             # 页面旋转：提取坐标未旋转、栅格化已旋转，输出端无 /Rotate，
             # 用坐标变换把旋转应用到文本/矢量/图片上（扫描页栅格图本身就是
             # 旋转后的视觉，直接铺满即可）
-            try:
-                rotation = int(doc.page_rotation(page_index) or 0) % 360
-            except Exception:
-                rotation = 0
+            rotation = _safe_page_rotation(doc, page_index)
             if rotation % 90:
                 log(f"  ⚠ 第{page_index + 1}页旋转角度非 90 的倍数（{rotation}°），按未旋转处理")
                 rotation = 0
@@ -1561,6 +1596,7 @@ def convert_pdf_file(
             if not doc.has_text_layer(page_index):
                 scanned_pages += 1
                 log(f"  ℹ 第{page_index + 1}页无文本层（扫描页），按原样栅格化保留")
+                prev_bridge = None  # 扫描页断开跨页衔接链
                 png = _rasterize_page_png(doc, page_index)
                 if png:
                     page_builder.image_with_alt(png, 0.0, 0.0, out_w, out_h, "")
@@ -1584,14 +1620,55 @@ def convert_pdf_file(
 
             # --- 文本：字符级聚合成绘制单元，按版面连续性拼接转换后按位置切回重排
             #     （连续拼接保留跨单元的词上下文；字符聚合避免推断空格拆开单词） ---
-            char_runs = _char_runs_from_page(doc, page_index, log)
+            if page_index in next_runs_cache:
+                char_runs = next_runs_cache.pop(page_index)
+            else:
+                char_runs = _char_runs_from_page(doc, page_index, log)
+            # 预提取下一页单元（供跨页衔接取下一页首行；正式处理时直接复用）
+            if (page_index + 1 < total_pages and page_index + 1 not in next_runs_cache
+                    and doc.has_text_layer(page_index + 1)):
+                next_runs_cache[page_index + 1] = _char_runs_from_page(doc, page_index + 1, log)
             if char_runs is not None:
                 if any(r.get('vert') for r in char_runs):
                     vertical_pages += 1
                 contiguous = _runs_contiguity(char_runs)
+
+                # 跨页衔接上下文：仅当版面衔接可信时拼接，避免页眉/页脚与
+                # 正文拼出原文不存在的词——
+                # - 本页与相邻页均无竖排/旋转单元且页面未旋转（否则 y 坐标
+                #   不表达阅读行位置）；
+                # - 正文贴近页边（距底/距顶不超过约 12% 页高或 4em：未写满
+                #   的页是章节/栏目结束，不会跨页续行）；
+                # - 相邻单元字号相近（过滤页眉/页脚的小字）
+                page_plain = (rotation == 0
+                              and not any(r.get('vert') or r.get('rot') for r in char_runs))
+                head, tail = char_runs[0], char_runs[-1]
+                prefix_context = None
+                if (prev_bridge is not None and page_plain
+                        and cy1 - head['y'] <= max(page_h * 0.12, head['size'] * 4)
+                        and abs(head['size'] - prev_bridge[1]) <= max(head['size'], prev_bridge[1]) * 0.3):
+                    prefix_context = prev_bridge[0]
+                suffix_context = None
+                next_runs = next_runs_cache.get(page_index + 1)
+                if (page_plain and tail['y'] - cy0 <= max(page_h * 0.12, tail['size'] * 4)
+                        and next_runs
+                        and _safe_page_rotation(doc, page_index + 1) == 0
+                        and not any(r.get('vert') or r.get('rot') for r in next_runs)):
+                    nhead = next_runs[0]
+                    if (cy1 - nhead['y'] <= max(page_h * 0.12, nhead['size'] * 4)
+                            and abs(nhead['size'] - tail['size']) <= max(nhead['size'], tail['size']) * 0.3):
+                        suffix_context = nhead['text'][:_BRIDGE_CONTEXT_CHARS]
+
                 converted_texts = _convert_page_texts(
                     cc, [run['text'] for run in char_runs], page_index + 1, log,
-                    contiguous)
+                    contiguous, prefix_context, suffix_context)
+
+                # 本页末单元贴近页底（页面写满，正文可能跨页续行）时记为
+                # 下一页的上文来源；否则断链
+                if page_plain and tail['y'] - cy0 <= max(page_h * 0.12, tail['size'] * 4):
+                    prev_bridge = (tail['text'][-_BRIDGE_CONTEXT_CHARS:], tail['size'])
+                else:
+                    prev_bridge = None
                 for run, converted in zip(char_runs, converted_texts):
                     mask = (_highlight_mask(run['text'], converted)
                             if highlight_changes else None)
@@ -1616,7 +1693,8 @@ def convert_pdf_file(
                         if mask:
                             highlighted_chars += sum(mask)
             else:
-                # 回退：按 span 重排
+                # 回退：按 span 重排（无单元结构，不参与跨页衔接）
+                prev_bridge = None
                 try:
                     spans = doc.extract_spans(page_index)
                 except Exception as e:

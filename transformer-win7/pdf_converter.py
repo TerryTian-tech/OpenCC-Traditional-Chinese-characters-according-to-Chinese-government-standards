@@ -1021,9 +1021,15 @@ def _runs_contiguity_horizontal(runs: List[dict]) -> List[bool]:
     return flags
 
 
+# 跨页衔接上下文的字符数：足够覆盖 OpenCC 词典的最长短语即可
+_BRIDGE_CONTEXT_CHARS = 16
+
+
 def _convert_page_texts(cc, texts: List[str],
                         page_no: int, log: Callable[[str], None],
-                        contiguous: Optional[List[bool]] = None) -> List[str]:
+                        contiguous: Optional[List[bool]] = None,
+                        prefix_context: Optional[str] = None,
+                        suffix_context: Optional[str] = None) -> List[str]:
     """
     将一页的所有绘制单元文本按版面连续性拼成若干段整体转换，再按位置索引
     切回各单元（移植自 doc_converter 的段落级上下文方案）。
@@ -1044,12 +1050,20 @@ def _convert_page_texts(cc, texts: List[str],
 
     contiguous 由调用方按版面方向传入（竖排 _runs_contiguity_vertical /
     横排 _runs_contiguity_horizontal）；为 None 时全部直接拼接（仅测试用）。
+
+    prefix_context / suffix_context 为跨页衔接上下文（上一页末单元尾部 /
+    下一页首单元开头的少量文字，启用条件见 convert_pdf_file 主循环）：
+    直接拼在全文首尾一起转换，但不计入任何单元的偏移——跨界词由 OpenCC
+    整体消歧后，页界两侧的单元按偏移各自拿到正确的字；前缀定位路径的
+    偏移同样已含上下文长度，公式不变。
     """
     if not texts:
         return []
     parts: List[str] = []
     positions = []
-    offset = 0
+    offset = len(prefix_context) if prefix_context else 0
+    if prefix_context:
+        parts.append(prefix_context)
     for i, t in enumerate(texts):
         if contiguous is not None and i and not contiguous[i]:
             parts.append('\n')
@@ -1057,27 +1071,35 @@ def _convert_page_texts(cc, texts: List[str],
         positions.append((offset, offset + len(t)))
         offset += len(t)
         parts.append(t)
+    if suffix_context:
+        parts.append(suffix_context)
     full = ''.join(parts)
     converted = cc.convert(full)
     if len(converted) == len(full):
         return [converted[s:e] for (s, e) in positions]
     log(f"  ⚠ 第{page_no}页转换后字符数变化（{len(full)}→{len(converted)}），按前缀转换定位单元边界")
-    return _split_converted_by_prefix(cc, full, positions, converted)
+    return _split_converted_by_prefix(
+        cc, full, positions, converted,
+        len(cc.convert(prefix_context)) if prefix_context else 0)
 
 
 def _split_converted_by_prefix(cc, full: str, positions: List[Tuple[int, int]],
-                               converted: str) -> List[str]:
+                               converted: str, start: int = 0) -> List[str]:
     """
     转换改变字符数时，用“前缀转换”确定各单元边界在译文中的落点：
     对每个单元结束位置 p，len(convert(full[:p])) 即该边界的译文位置——
     由 OpenCC 自身的分词决定，词内的字不会被错配到相邻单元（draw 时
     错配意味着字符画到别的单元位置上）。
 
+    start 为转换文本中不属于任何单元的前置上下文（跨页衔接 prefix）的
+    译文长度，作为首个边界的起点——prefix 的独立转换长度与拼接后的
+    实际落点可能因跨界词略有偏移，由钳制兜底（不丢字、不重复）。
+
     前缀长度理论上可能非单调（边界切在词中间、词典长短映射），用钳制
     保证边界单调递增，最坏退化为按邻近边界对齐——不丢字、不重复。
     （与 doc_converter._convert_paragraph_fallback 同一方案。）
     """
-    bounds = [0]
+    bounds = [min(max(start, 0), len(converted))]
     for _s, e in positions:
         q = len(cc.convert(full[:e]))
         bounds.append(min(max(q, bounds[-1]), len(converted)))
@@ -1769,6 +1791,70 @@ def convert_pdf_file(
         vertical_pages = 0
         warned_rotation = False
 
+        # 跨页衔接状态：next_prep 缓存预提取的下一页（pdfminer 的 interpreter
+        # 对每页只能解释一次，预提取的结果正式处理时直接复用）；prev_bridge
+        # 记录上一页末单元的（尾部文本, 字号）——页界两侧各自转换会让恰好
+        # 跨页的词失去上下文（“乾隆”分属两页时“乾”被单字映射转错），
+        # 衔接时把它拼进相邻页的转换文本一起消歧
+        next_prep = None
+        prev_bridge = None  # (tail_text, size) 或 None
+
+        def _prep_page(idx: int) -> tuple:
+            """解释第 idx 页：几何 + content + 聚合单元，供主循环与跨页衔接共用"""
+            p = pages[idx]
+            # 裁剪框决定可见区域，输出页面以它为基准
+            try:
+                cx0, cy0, cx1, cy1 = [float(v) for v in p.cropbox]
+            except Exception:
+                cx0 = cy0 = cx1 = cy1 = 0.0
+            pw, ph = cx1 - cx0, cy1 - cy0
+            if pw <= 0 or ph <= 0:
+                try:
+                    mb = [float(v) for v in p.mediabox]
+                except Exception:
+                    mb = [0.0, 0.0, 612.0, 792.0]
+                cx0, cy0 = mb[0], mb[1]
+                pw, ph = mb[2] - mb[0], mb[3] - mb[1]
+
+            rot = int(p.rotate or 0) % 360
+
+            # pdfminer 的布局坐标在“设备空间”（旋转与媒体框平移已应用）。
+            # 旋转页用 ctm 的逆矩阵把坐标还原到用户空间，让水平文字得以保留；
+            # 非旋转页 pdfminer 仅做了媒体框平移，记录设备坐标即可，但绘制
+            # 基准需相应改为“设备空间中的裁剪框原点”，避免平移量被重复扣除。
+            try:
+                mx0, my0, mx1, my1 = [float(v) for v in p.mediabox]
+            except Exception:
+                mx0, my0, mx1, my1 = 0.0, 0.0, 0.0, 0.0
+            if rot == 90:
+                ctm = (0.0, -1.0, 1.0, 0.0, -my0, mx1)
+            elif rot == 180:
+                ctm = (-1.0, 0.0, 0.0, -1.0, mx1, my1)
+            elif rot == 270:
+                ctm = (0.0, 1.0, -1.0, 0.0, my1, -mx0)
+            else:
+                ctm = None
+            if ctm is None:
+                xform = None
+                pox, poy = cx0 - mx0, cy0 - my0
+            else:
+                xform = _inverse_matrix(ctm)
+                if xform is None:
+                    xform = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+                pox, poy = cx0, cy0
+
+            ltpage = None
+            try:
+                interpreter.process_page(p)
+                ltpage = device.get_result()
+            except Exception as e:
+                log(f"  ⚠ 第{idx + 1}页内容解析失败: {e}")
+            page_content = _collect_page_content(ltpage, xform, log)
+            runs = (_char_runs_from_page(page_content, idx, log)
+                    if page_content['char_total'] else [])
+            return (idx, cx0, cy0, cx1, cy1, pw, ph, rot, xform, pox, poy,
+                    page_content, runs)
+
         for page_index, page in enumerate(pages):
             if is_cancelled_callback and is_cancelled_callback():
                 log("转换已被取消")
@@ -1776,61 +1862,21 @@ def convert_pdf_file(
 
             log(f"  [{page_index + 1}/{total_pages}] 处理第 {page_index + 1} 页")
 
-            # 裁剪框决定可见区域，输出页面以它为基准
-            try:
-                cx0, cy0, cx1, cy1 = [float(v) for v in page.cropbox]
-            except Exception:
-                cx0 = cy0 = cx1 = cy1 = 0.0
-            page_w, page_h = cx1 - cx0, cy1 - cy0
-            if page_w <= 0 or page_h <= 0:
-                try:
-                    mb = [float(v) for v in page.mediabox]
-                except Exception:
-                    mb = [0.0, 0.0, 612.0, 792.0]
-                cx0, cy0 = mb[0], mb[1]
-                page_w, page_h = mb[2] - mb[0], mb[3] - mb[1]
+            # 取本页解释结果（预提取缓存命中则复用），并清空缓存
+            prep = (next_prep
+                    if next_prep is not None and next_prep[0] == page_index
+                    else _prep_page(page_index))
+            next_prep = None
+            (_idx, cx0, cy0, cx1, cy1, page_w, page_h, rotation, transform,
+             ox, oy, content, char_runs) = prep
 
-            rotation = int(page.rotate or 0) % 360
             if rotation and not warned_rotation:
                 log(f"  ⚠ 第{page_index + 1}页设置了页面旋转（{rotation}°）：本引擎无法旋转整页输出，"
                     "该页文字将还原为水平方向且页面宽高不互换，输出方向与原文视觉方向不同")
                 warned_rotation = True
 
-            # pdfminer 的布局坐标在“设备空间”（旋转与媒体框平移已应用）。
-            # 旋转页用 ctm 的逆矩阵把坐标还原到用户空间，让水平文字得以保留；
-            # 非旋转页 pdfminer 仅做了媒体框平移，记录设备坐标即可，但绘制
-            # 基准需相应改为“设备空间中的裁剪框原点”，避免平移量被重复扣除。
-            try:
-                mx0, my0, mx1, my1 = [float(v) for v in page.mediabox]
-            except Exception:
-                mx0, my0, mx1, my1 = 0.0, 0.0, 0.0, 0.0
-            if rotation == 90:
-                ctm = (0.0, -1.0, 1.0, 0.0, -my0, mx1)
-            elif rotation == 180:
-                ctm = (-1.0, 0.0, 0.0, -1.0, mx1, my1)
-            elif rotation == 270:
-                ctm = (0.0, 1.0, -1.0, 0.0, my1, -mx0)
-            else:
-                ctm = None
-            if ctm is None:
-                transform = None
-                ox, oy = cx0 - mx0, cy0 - my0
-            else:
-                transform = _inverse_matrix(ctm)
-                if transform is None:
-                    transform = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
-                ox, oy = cx0, cy0
-
             canvas.setPageSize((page_w, page_h))
 
-            # --- 解析页面内容 ---
-            ltpage = None
-            try:
-                interpreter.process_page(page)
-                ltpage = device.get_result()
-            except Exception as e:
-                log(f"  ⚠ 第{page_index + 1}页内容解析失败: {e}")
-            content = _collect_page_content(ltpage, transform, log)
             has_text = content['char_total'] > 0
 
             # --- 图片（先画，位于文字下层）；扫描页以此保留原貌 ---
@@ -1857,6 +1903,7 @@ def convert_pdf_file(
                     log(f"  ⚠ 第{page_index + 1}页扫描图片解码失败，输出为空白页")
                 elif not content['images']:
                     log(f"  ⚠ 第{page_index + 1}页没有文本层也没有图片，输出为空白页")
+                prev_bridge = None  # 扫描页断开跨页衔接链
                 canvas.showPage()
                 continue
 
@@ -1872,14 +1919,52 @@ def convert_pdf_file(
             # --- 文本：字符级聚合成绘制单元，按版面连续性拼接转换后按位置切回重排
             #     （连续拼接保留跨单元的词上下文；字符聚合避免推断空格拆开单词；
             #     竖排页按“列从右到左、列内自上而下”聚合，上下文与阅读序一致） ---
-            char_runs = _char_runs_from_page(content, page_index, log)
+            # 预提取下一页（供跨页衔接取下一页首单元；正式处理时直接复用）
+            if page_index + 1 < total_pages and next_prep is None:
+                next_prep = _prep_page(page_index + 1)
+
             vertical = any(r.get('col') is not None for r in char_runs)
             if vertical:
                 vertical_pages += 1
             contiguous = (_runs_contiguity_vertical(char_runs) if vertical
                           else _runs_contiguity_horizontal(char_runs))
+
+            # 跨页衔接上下文：仅当版面衔接可信时拼接，避免页眉/页脚与
+            # 正文拼出原文不存在的词——本页与相邻页均无竖排/侧排单元且
+            # 页面未旋转（否则 y 坐标不表达阅读行位置）、正文贴近页边
+            # （距底/距顶不超过约 12% 页高或 4em：未写满的页是章节/栏目
+            # 结束，不会跨页续行）、相邻单元字号相近（过滤页眉/页脚小字）
+            page_plain = (bool(char_runs) and rotation == 0
+                          and not any(r.get('col') is not None or r.get('rot')
+                                      for r in char_runs))
+            head, tail = char_runs[0], char_runs[-1]
+            prefix_context = None
+            if (prev_bridge is not None and page_plain
+                    and cy1 - head['y'] <= max(page_h * 0.12, head['size'] * 4)
+                    and abs(head['size'] - prev_bridge[1]) <= max(head['size'], prev_bridge[1]) * 0.3):
+                prefix_context = prev_bridge[0]
+            suffix_context = None
+            if (page_plain and tail['y'] - cy0 <= max(page_h * 0.12, tail['size'] * 4)
+                    and next_prep is not None and next_prep[0] == page_index + 1):
+                (_ni, _nx0, _ny0, _nx1, _ny1, _nw, _nh, nrot, _ntr, _nox, _noy,
+                 _ncontent, nruns) = next_prep
+                nhead = nruns[0] if nruns else None
+                if (nhead is not None and nrot == 0
+                        and not any(r.get('col') is not None or r.get('rot') for r in nruns)
+                        and cy1 - nhead['y'] <= max(page_h * 0.12, nhead['size'] * 4)
+                        and abs(nhead['size'] - tail['size']) <= max(nhead['size'], tail['size']) * 0.3):
+                    suffix_context = nhead['text'][:_BRIDGE_CONTEXT_CHARS]
+
             converted_texts = _convert_page_texts(
-                cc, [run['text'] for run in char_runs], page_index + 1, log, contiguous)
+                cc, [run['text'] for run in char_runs], page_index + 1, log,
+                contiguous, prefix_context, suffix_context)
+
+            # 本页末单元贴近页底（页面写满，正文可能跨页续行）时记为
+            # 下一页的上文来源；否则断链
+            if page_plain and tail['y'] - cy0 <= max(page_h * 0.12, tail['size'] * 4):
+                prev_bridge = (tail['text'][-_BRIDGE_CONTEXT_CHARS:], tail['size'])
+            else:
+                prev_bridge = None
             for run, converted in zip(char_runs, converted_texts):
                 mask = (_highlight_mask(run['text'], converted)
                         if highlight_changes else None)

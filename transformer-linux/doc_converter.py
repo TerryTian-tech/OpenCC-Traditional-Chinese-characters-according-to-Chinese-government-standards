@@ -43,6 +43,8 @@ class DocxTraditionalSimplifiedConverter:
     _WT_TEXT_RE = re.compile(r'(<w:t(?:\s[^>]*)?>)(.*?)(</w:t>)', re.DOTALL)
     # 文本框内容块（AlternateContent 的 Choice 与 Fallback 中会重复出现，转换幂等）
     _TXBX_RE = re.compile(r'(<w:txbxContent(?:\s[^>]*)?>)(.*?)(</w:txbxContent>)', re.DOTALL)
+    # 脚注/尾注块：块内所有 <w:t> 同属一条完整脚注文本，拼接转换保有词上下文
+    _WT_BLOCK_RE = re.compile(r'(<w:(?:footnote|endnote)\b[^>]*>)(.*?)(</w:(?:footnote|endnote)>)', re.DOTALL)
 
     def _convert_aux_content_via_zip(self, input_path, output_path):
         """
@@ -137,6 +139,70 @@ class DocxTraditionalSimplifiedConverter:
             return match.group(1) + self.convert_text(text) + match.group(3)
         return match.group(0)
 
+    def _convert_wt_texts(self, texts):
+        """
+        块内全部 <w:t> 文本直接拼接整体转换后按偏移切回：
+        一个词常被相邻 run 切开（格式切换、拼写检查、修订边界），
+        逐 <w:t> 转换会让词首/词尾的字失去上下文（“乾”“隆”分属两个
+        run 时“乾”被单字映射转错）。直接拼接（不插分隔符——分隔符
+        会被 OpenCC 分词视为词界）使跨 run 的词保有完整上下文。
+        长度一致按原偏移切回；长度变化用前缀转换定位各 <w:t> 边界
+        （与 _convert_paragraph_fallback 同方案），词内的字不会被
+        错配到相邻 run。
+        """
+        full = ''.join(texts)
+        converted = self.convert_text(full)
+
+        if len(converted) == len(full):
+            out = []
+            pos = 0
+            for t in texts:
+                out.append(converted[pos:pos + len(t)])
+                pos += len(t)
+            return out
+
+        bounds = [0]
+        p = 0
+        for t in texts:
+            p += len(t)
+            q = len(self.convert_text(full[:p]))
+            bounds.append(min(max(q, bounds[-1]), len(converted)))
+        return [converted[bounds[i]:bounds[i + 1]] for i in range(len(texts))]
+
+    def _convert_wt_content(self, content):
+        """
+        批量转换一段 XML 内容中的全部 <w:t>：拼接整体转换后按各标签
+        原偏移切回，标签本身及其属性原样保留。
+        """
+        matches = list(self._WT_TEXT_RE.finditer(content))
+        if not matches:
+            return content
+        converted = self._convert_wt_texts([m.group(2) for m in matches])
+        out = []
+        last_end = 0
+        for m, c in zip(matches, converted):
+            out.append(content[last_end:m.start()])
+            out.append(m.group(1) + c + m.group(3))
+            last_end = m.end()
+        out.append(content[last_end:])
+        return ''.join(out)
+
+    def _convert_wt_blocks(self, content):
+        """
+        按 <w:footnote>/<w:endnote> 块分组转换：一条脚注是一个完整
+        文本，块内 <w:t> 批量拼接转换（run 边界不构成词界）；块与块
+        之间互不拼接，避免相邻脚注的句尾/句首拼出原文不存在的词。
+        块外的游离 <w:t>（不规范文档中罕见）退回逐个转换的旧行为。
+        """
+        out = []
+        last_end = 0
+        for m in self._WT_BLOCK_RE.finditer(content):
+            out.append(self._WT_TEXT_RE.sub(self._convert_wt_text, content[last_end:m.start()]))
+            out.append(m.group(1) + self._convert_wt_content(m.group(2)) + m.group(3))
+            last_end = m.end()
+        out.append(self._WT_TEXT_RE.sub(self._convert_wt_text, content[last_end:]))
+        return ''.join(out)
+
     def _convert_textboxes_in_xml(self, xml_path) -> bool:
         """
         转换单个 XML 部件中所有文本框（w:txbxContent）内的 <w:t> 文字。
@@ -158,7 +224,7 @@ class DocxTraditionalSimplifiedConverter:
             def convert_txbx(match):
                 return (
                     match.group(1)
-                    + self._WT_TEXT_RE.sub(self._convert_wt_text, match.group(2))
+                    + self._convert_wt_content(match.group(2))
                     + match.group(3)
                 )
 
@@ -184,6 +250,9 @@ class DocxTraditionalSimplifiedConverter:
         不对 XML 做解析-重写操作，从而完全保留原始 XML 结构（命名空间声明、
         属性顺序、XML 声明等），杜绝因 ElementTree 重写导致命名空间前缀
         被篡改（如 w: → ns0:）而使 Word 无法解析脚注/尾注的问题。
+
+        按 <w:footnote>/<w:endnote> 块分组批量转换（见 _convert_wt_blocks）：
+        块内 <w:t> 拼接整体转换，跨 run 的词保有完整上下文。
         """
         try:
             # 检查是否已取消
@@ -197,7 +266,7 @@ class DocxTraditionalSimplifiedConverter:
             if self.is_cancelled_callback and self.is_cancelled_callback():
                 return
 
-            converted_content = self._WT_TEXT_RE.sub(self._convert_wt_text, content)
+            converted_content = self._convert_wt_blocks(content)
 
             # 检查是否已取消
             if self.is_cancelled_callback and self.is_cancelled_callback():
