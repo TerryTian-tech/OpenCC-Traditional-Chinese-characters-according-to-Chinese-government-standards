@@ -1469,11 +1469,12 @@ class ModernUI(QMainWindow):
 
         def check(file_path):
             basename = os.path.basename(file_path)
-            name, ext = os.path.splitext(basename)
-            if ext.lower() not in SUPPORTED_FILE_EXTENSIONS:
+            ext = os.path.splitext(basename)[1].lower()
+            if ext not in SUPPORTED_FILE_EXTENSIONS:
                 return
-            # DOC 文件先转为 DOCX 再转换，输出文件扩展名为 .docx
-            output_name = f"convert_{name}.docx" if ext.lower() == '.doc' else f"convert_{basename}"
+            # DOC 先转为 DOCX 再转换，输出为 convert_a.doc.docx（追加扩展名），
+            # 避免与同文件夹 a.docx 的输出 convert_a.docx 互相覆盖
+            output_name = f"convert_{basename}.docx" if ext == '.doc' else f"convert_{basename}"
             output_file = os.path.join(output_folder, output_name)
             if os.path.exists(output_file) and output_file not in conflicts:
                 conflicts.append(output_file)

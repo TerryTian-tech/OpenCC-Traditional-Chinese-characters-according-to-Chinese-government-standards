@@ -84,9 +84,10 @@ def convert_doc_to_docx(input_path, output_folder, log_callback=None, is_cancell
                 doc.Close()
                 return False
 
-            # 生成输出文件名
+            # 生成输出文件名（a.doc → a.doc.docx：追加而非替换扩展名，
+            # 使最终输出 convert_a.doc.docx 不与同文件夹 a.docx 的输出互相覆盖）
             filename = os.path.basename(input_path)
-            docx_filename = os.path.splitext(filename)[0] + ".docx"
+            docx_filename = filename + ".docx"
             output_path = os.path.join(output_folder, docx_filename)
 
             # 保存为DOCX格式
