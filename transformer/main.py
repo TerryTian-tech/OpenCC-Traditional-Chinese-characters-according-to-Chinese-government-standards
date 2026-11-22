@@ -1439,7 +1439,14 @@ class ModernUI(QMainWindow):
         elif choice == QMessageBox.StandardButton.No:  # 文件
             paths, _ = QFileDialog.getOpenFileNames(
                 self, "选择文件", "",
-                "文档文件 (*.doc *.docx *.txt *.md *.srt *.ass *.ssa *.lrc *.epub *.pdf);;所有文件 (*)"
+                "所有支持的文件 (*.doc *.docx *.txt *.md *.srt *.ass *.ssa *.lrc *.epub *.pdf);;"
+                "文本文件 (*.txt);;"
+                "Markdown 文件 (*.md);;"
+                "字幕文件 (*.srt *.ass *.ssa *.lrc);;"
+                "Word 文档 (*.doc *.docx);;"
+                "EPUB 电子书 (*.epub);;"
+                "PDF 文件 (*.pdf);;"
+                "所有文件 (*)"
             )
             if paths:
                 self.selected_files = paths
