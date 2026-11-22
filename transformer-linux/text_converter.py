@@ -179,7 +179,7 @@ def safe_read_file(file_path, encoding, log_callback=None):
 
 
 def convert_srt_file(input_path, output_folder, conversion_type, log_callback=None, is_cancelled_callback=None,
-                      force_encoding=None):
+                      force_encoding=None, keep_original_name=False):
     """
     将SRT字幕文件转换为繁体/简体
     SRT格式示例：
@@ -195,6 +195,7 @@ def convert_srt_file(input_path, output_folder, conversion_type, log_callback=No
     :param conversion_type: 转换类型
     :param log_callback: 日志回调函数
     :param is_cancelled_callback: 取消检查回调函数
+    :param keep_original_name: 输出文件名是否与原文件名一致（不加 convert_ 前缀）
     :return: 转换后的文件路径或False
     """
     def log(msg):
@@ -296,7 +297,7 @@ def convert_srt_file(input_path, output_folder, conversion_type, log_callback=No
         converted_content = '\n'.join(converted_lines)
 
         # 保存文件
-        output_filename = f"convert_{os.path.basename(input_path)}"
+        output_filename = os.path.basename(input_path) if keep_original_name else f"convert_{os.path.basename(input_path)}"
         output_path = os.path.join(output_folder, output_filename)
 
         with open(output_path, 'w', encoding='utf-8') as f:
@@ -388,7 +389,7 @@ def _convert_srt_text_with_tags(cc, text):
 
 
 def convert_ass_file(input_path, output_folder, conversion_type, log_callback=None, is_cancelled_callback=None,
-                      force_encoding=None):
+                      force_encoding=None, keep_original_name=False):
     """
     将ASS/SSA字幕文件转换为繁体/简体
     ASS/SSA格式包含多个部分：
@@ -403,6 +404,7 @@ def convert_ass_file(input_path, output_folder, conversion_type, log_callback=No
     :param conversion_type: 转换类型
     :param log_callback: 日志回调函数
     :param is_cancelled_callback: 取消检查回调函数
+    :param keep_original_name: 输出文件名是否与原文件名一致（不加 convert_ 前缀）
     :return: 转换后的文件路径或False
     """
     def log(msg):
@@ -485,7 +487,7 @@ def convert_ass_file(input_path, output_folder, conversion_type, log_callback=No
         converted_content = '\n'.join(converted_lines)
 
         # 保存文件
-        output_filename = f"convert_{os.path.basename(input_path)}"
+        output_filename = os.path.basename(input_path) if keep_original_name else f"convert_{os.path.basename(input_path)}"
         output_path = os.path.join(output_folder, output_filename)
 
         with open(output_path, 'w', encoding='utf-8') as f:
@@ -543,7 +545,7 @@ def _convert_ass_dialogue_line(cc, line):
 
 
 def convert_lrc_file(input_path, output_folder, conversion_type, log_callback=None, is_cancelled_callback=None,
-                      force_encoding=None):
+                      force_encoding=None, keep_original_name=False):
     """
     将LRC歌词文件转换为繁体/简体
     LRC格式示例：
@@ -562,6 +564,7 @@ def convert_lrc_file(input_path, output_folder, conversion_type, log_callback=No
     :param conversion_type: 转换类型
     :param log_callback: 日志回调函数
     :param is_cancelled_callback: 取消检查回调函数
+    :param keep_original_name: 输出文件名是否与原文件名一致（不加 convert_ 前缀）
     :return: 转换后的文件路径或False
     """
     def log(msg):
@@ -665,7 +668,7 @@ def convert_lrc_file(input_path, output_folder, conversion_type, log_callback=No
         converted_content = '\n'.join(converted_lines)
 
         # 保存文件
-        output_filename = f"convert_{os.path.basename(input_path)}"
+        output_filename = os.path.basename(input_path) if keep_original_name else f"convert_{os.path.basename(input_path)}"
         output_path = os.path.join(output_folder, output_filename)
 
         with open(output_path, 'w', encoding='utf-8') as f:
@@ -722,7 +725,7 @@ def _convert_lrc_lyric_text(cc, text):
     return ''.join(result)
 
 def convert_txt_file(input_path, output_folder, conversion_type, log_callback=None, is_cancelled_callback=None,
-                      force_encoding=None, segment_mode=None):
+                      force_encoding=None, segment_mode=None, keep_original_name=False):
     """
     将txt文件转换为繁体/简体
 
@@ -732,6 +735,7 @@ def convert_txt_file(input_path, output_folder, conversion_type, log_callback=No
     :param log_callback: 日志回调函数
     :param is_cancelled_callback: 取消检查回调函数
     :param force_encoding: 强制指定的编码
+    :param keep_original_name: 输出文件名是否与原文件名一致（不加 convert_ 前缀）
     :return: 转换后的文件路径或False
     """
     def log(msg):
@@ -782,7 +786,7 @@ def convert_txt_file(input_path, output_folder, conversion_type, log_callback=No
             return False
 
         # 保存文件
-        output_filename = f"convert_{os.path.basename(input_path)}"
+        output_filename = os.path.basename(input_path) if keep_original_name else f"convert_{os.path.basename(input_path)}"
         output_path = os.path.join(output_folder, output_filename)
 
         with open(output_path, 'w', encoding='utf-8') as f:

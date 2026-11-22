@@ -1379,7 +1379,8 @@ def convert_pdf_file(
     conversion_type: str,
     log_callback: Optional[Callable[[str], None]] = None,
     is_cancelled_callback: Optional[Callable[[], bool]] = None,
-    highlight_changes: bool = False
+    highlight_changes: bool = False,
+    keep_original_name: bool = False
 ) -> Union[str, bool]:
     """
     转换 PDF 文件中的文本内容并输出新的 PDF 文件。
@@ -1406,6 +1407,8 @@ def convert_pdf_file(
         是否为转换中修改的字添加黄色高亮。只高亮汉字的实质变化；
         标点符号变化，以及重建时整体替换输出字体（宋体/黑体等）带来的
         观感差异不属于“修改”，不高亮
+    keep_original_name : bool
+        输出文件名是否与原文件名一致（不加 convert_ 前缀）
 
     返回
     -------
@@ -1515,8 +1518,9 @@ def convert_pdf_file(
             log("提示：如需转换扫描件，请先使用 OCR 工具识别文字后再尝试")
             return False
 
-        # --- 初始化输出文档 ---
-        builder = DocumentBuilder().title(f"convert_{os.path.splitext(os.path.basename(input_path))[0]}")
+        # --- 初始化输出文档（标题与输出文件名是否带 convert_ 前缀保持一致） ---
+        title_stem = os.path.splitext(os.path.basename(input_path))[0]
+        builder = DocumentBuilder().title(title_stem if keep_original_name else f"convert_{title_stem}")
 
         # 实例化逻辑字体表；同一字体文件只注册一次，多个逻辑名共享注册名。
         # 注册失败的路径也记入 registered_by_path（值为 None），共用该路径的
@@ -1726,7 +1730,7 @@ def convert_pdf_file(
             return False
 
         # --- 写出文件 ---
-        output_filename = f"convert_{os.path.basename(input_path)}"
+        output_filename = os.path.basename(input_path) if keep_original_name else f"convert_{os.path.basename(input_path)}"
         output_path = os.path.join(output_folder, output_filename)
         if not output_path.lower().endswith('.pdf'):
             output_path += '.pdf'

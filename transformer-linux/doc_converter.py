@@ -571,7 +571,7 @@ class DocxTraditionalSimplifiedConverter:
 
 
 def convert_docx_file(input_path, output_folder, conversion_type, preserve_format=True, convert_footnotes=True,
-                      log_callback=None, is_cancelled_callback=None):
+                      log_callback=None, is_cancelled_callback=None, keep_original_name=False):
     """
     将Word文档转换为简体/繁体
     :param input_path: 输入文件路径
@@ -581,6 +581,7 @@ def convert_docx_file(input_path, output_folder, conversion_type, preserve_forma
     :param convert_footnotes: 是否转换脚注
     :param log_callback: 日志回调函数
     :param is_cancelled_callback: 取消检查回调函数
+    :param keep_original_name: 输出文件名是否与原文件名一致（不加 convert_ 前缀）
     :return: 转换后的文件路径
     """
     def log(msg):
@@ -610,7 +611,9 @@ def convert_docx_file(input_path, output_folder, conversion_type, preserve_forma
             # 使用新的转换器类
             converter = DocxTraditionalSimplifiedConverter(log_callback, is_cancelled_callback, conversion_type,
                                                             preserve_format, convert_footnotes)
-            output_path = os.path.join(output_folder, f"convert_{os.path.basename(input_path)}")
+            # 文件名与原文件一致时不加 convert_ 前缀
+            output_name = os.path.basename(input_path) if keep_original_name else f"convert_{os.path.basename(input_path)}"
+            output_path = os.path.join(output_folder, output_name)
             result = converter.convert_document(input_path, output_path)
 
             if result:

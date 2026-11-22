@@ -390,7 +390,8 @@ def convert_epub_file(
     output_folder: str,
     conversion_type: str,
     log_callback: Optional[Callable[[str], None]] = None,
-    is_cancelled_callback: Optional[Callable[[], bool]] = None
+    is_cancelled_callback: Optional[Callable[[], bool]] = None,
+    keep_original_name: bool = False
 ) -> Union[str, bool]:
     """
     将 EPUB 文件中的文字内容进行繁简转换，输出新的 EPUB 文件。
@@ -407,6 +408,8 @@ def convert_epub_file(
         日志回调函数，接收字符串参数
     is_cancelled_callback : callable or None
         取消检查回调，返回 True 表示用户请求取消
+    keep_original_name : bool
+        输出文件名是否与原文件名一致（不加 convert_ 前缀）
 
     返回
     -------
@@ -507,7 +510,7 @@ def convert_epub_file(
             return False
 
         # --- 写出新 EPUB ---
-        output_filename = f"convert_{os.path.basename(input_path)}"
+        output_filename = os.path.basename(input_path) if keep_original_name else f"convert_{os.path.basename(input_path)}"
         output_path = os.path.join(output_folder, output_filename)
 
         try:
