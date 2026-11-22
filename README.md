@@ -163,11 +163,15 @@ python3 main.py
 
 ## Contributors 开源贡献者
 
-由于本仓库同时在 [Gitee](https://gitee.com/terrytian-tech/tonggui-traditional-chinese) 和 [GitCode](https://gitcode.com/TerryTian-tech/OpenCC-Tonggui-Traditional-Chinese) 平台托管，特此将所有平台的开源贡献者列表如下：
+由于本仓库同时在 [Gitee](https://gitee.com/terrytian-tech/tonggui-traditional-chinese) 和 [GitCode](https://gitcode.com/TerryTian-tech/OpenCC-Tonggui-Traditional-Chinese) 平台托管，特此将所有平台的开源贡献者列表如下。此处不仅限于提交PR的贡献者，提交优质Issue和其他贡献者也列入其中。
 
 * [TerryTian-tech](https://github.com/TerryTian-tech)
 
 * [FranksLin](https://github.com/frankslin)
+
+* [萧苏晏](https://github.com/puyun1000)
+
+* [SoizoKtantas](https://github.com/soizo)
 
 ## 许可协议
 
