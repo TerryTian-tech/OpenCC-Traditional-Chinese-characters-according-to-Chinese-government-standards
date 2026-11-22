@@ -5,7 +5,7 @@ PySide6==6.11.2
 PySide6_Addons==6.11.2
 PySide6_Essentials==6.11.2
 python_docx==1.2.0
-certifi==2026.10.23
+certifi==2026.11.20
 beautifulsoup4==4.15.0
 lxml==6.1.3
 pywin32==312
