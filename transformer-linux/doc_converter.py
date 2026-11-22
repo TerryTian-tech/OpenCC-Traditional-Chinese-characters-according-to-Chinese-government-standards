@@ -339,31 +339,20 @@ class DocxTraditionalSimplifiedConverter:
                     os.remove(temp_output)
                 return None
 
-            # 转换页眉
+            # 只处理已定义的页眉和页脚。访问链接分节的段落会在
+            # 没有可继承定义时创建空白部件，也可能重复转换同一部件。
             for section in doc.sections:
-                self._convert_paragraphs(section.header.paragraphs)
-                # 转换页眉中的表格
-                if hasattr(section.header, 'tables') and section.header.tables:
-                    self._convert_tables(section.header.tables)
-
-                # 检查是否已取消
-                if self.is_cancelled_callback and self.is_cancelled_callback():
-                    if temp_output and os.path.exists(temp_output):
-                        os.remove(temp_output)
-                    return None
-
-            # 转换页脚
-            for section in doc.sections:
-                self._convert_paragraphs(section.footer.paragraphs)
-                # 转换页脚中的表格
-                if hasattr(section.footer, 'tables') and section.footer.tables:
-                    self._convert_tables(section.footer.tables)
-
-                # 检查是否已取消
-                if self.is_cancelled_callback and self.is_cancelled_callback():
-                    if temp_output and os.path.exists(temp_output):
-                        os.remove(temp_output)
-                    return None
+                for region in (
+                    section.header, section.first_page_header, section.even_page_header,
+                    section.footer, section.first_page_footer, section.even_page_footer,
+                ):
+                    if self.is_cancelled_callback and self.is_cancelled_callback():
+                        if temp_output and os.path.exists(temp_output):
+                            os.remove(temp_output)
+                        return None
+                    if not region.is_linked_to_previous:
+                        self._convert_paragraphs(region.paragraphs)
+                        self._convert_tables(region.tables)
 
             # 保存最终文档
             doc.save(output_path)
