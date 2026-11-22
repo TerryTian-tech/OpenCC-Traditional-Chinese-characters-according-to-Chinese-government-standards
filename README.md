@@ -136,7 +136,7 @@ python3 main.py
 
 * [regexp-replace-lists-for-TextPro](https://github.com/Fusyong/regexp-replace-lists-for-TextPro)  维护者：[Huang Fusyong](https://github.com/Fusyong)
 
-* [telegram-zh-Hant-CN](https://github.com/soizo/telegram-zh-Hant-CN)  维护者：[SoizoKtantas](https://github.com/soizo)
+* [telegram-zh-hant-cn](https://github.com/soizo/telegram-zh-hant-cn)  维护者：[SoizoKtantas](https://github.com/soizo)
 
 * [Mainland_Traditional_Chinese_Converter](https://github.com/Xebec33/Mainland_Traditional_Chinese_Converter)  维护者：[Xebec33](https://github.com/Xebec33)
 
